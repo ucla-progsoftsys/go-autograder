@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+# Set up autograder files
+
+export GOPATH=/autograder/source
+
+cd /autograder/source/src/test_runner
+
+# Copy the student's submission into the autograder's working directory
+mkdir -p /autograder/source/submission
+cp -a /autograder/submission/. /autograder/source/submission/
+
+# Delete all _test.go files
+find /autograder/source/submission -name '*_test.go' -delete
+
+# Copy replacement files over student submission
+if [ -d "/autograder/source/replacement_files" ]; then
+    rsync -av /autograder/source/replacement_files/ /autograder/source/submission/ >/dev/null 2>/dev/null
+fi
+
+# Check if custom_run_autograder.sh exists and source it
+if [ -f /autograder/source/custom_run_autograder.sh ]; then
+    source /autograder/source/custom_run_autograder.sh
+fi
+
+# Build a run the test_runner program
+go build .
+./test_runner
+
+# Copy the output json to the location specified by Gradescope's docs
+cp /autograder/source/results.json /autograder/results/results.json
