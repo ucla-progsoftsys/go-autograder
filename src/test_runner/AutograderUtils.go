@@ -103,8 +103,6 @@ func JsonTestRunner() (result AutograderOutput, err error) {
 		}
 		args = append(args, "-run", "^"+testConfig.Name+"$", "./...")
 		// Print args
-		fmt.Printf("Running command: go %s\n", args)
-		fmt.Printf("[]")
 		cmd := exec.Command("go", args...)
 		out, err := cmd.CombinedOutput()
 
