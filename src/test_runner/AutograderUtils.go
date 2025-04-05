@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -41,7 +42,33 @@ type AutograderOutput struct {
 	Tests      []TestResult `json:"tests"`
 }
 
-func JsonTestRunner() (result AutograderOutput, err error) {
+func FileChecker() (missingFiles []string) {
+	requiredFilesPath, err := filepath.Abs("../../required_files.txt")
+	if err != nil {
+		return nil
+	}
+
+	file, err := os.Open(requiredFilesPath)
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+
+	// Parse the file into an array of strings
+	// One line per string
+	missingFiles = make([]string, 0)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		// Check if the file exists
+		if _, err := os.Stat("/autograder/submission/" + scanner.Text()); os.IsNotExist(err) {
+			missingFiles = append(missingFiles, scanner.Text())
+		}
+	}
+	
+	return missingFiles
+}
+
+func GetJsonConfig() (autograderConfig AutograderConfig, err error) {
 	// Open the autograderconfig JSON file
 	testConfigPath, err := filepath.Abs("../../autograder.config.json")
 	if err != nil {
@@ -54,8 +81,18 @@ func JsonTestRunner() (result AutograderOutput, err error) {
 	}
 
 	// Parse the JSON into an array of testConfig structs
-	var autograderConfig AutograderConfig
 	err = json.Unmarshal(file, &autograderConfig)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+
+func JsonTestRunner() (result AutograderOutput, err error) {
+	// Open the autograderconfig JSON file
+	autograderConfig, err := GetJsonConfig()
 	if err != nil {
 		return
 	}

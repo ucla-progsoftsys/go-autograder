@@ -7,7 +7,7 @@ if [ -e "autograder.zip" ]; then
 fi
 
 AUTOGRADER_FILES="src run_autograder setup.sh"
-CONFIG_FILES="autograder.config.json replacement_files custom_setup.sh custom_run_autograder.sh"
+CONFIG_FILES="autograder.config.json replacement_files custom_setup.sh custom_run_autograder.sh required_files.txt"
 
 AUTOGRADER_FOLDER=$(dirname -- "$( readlink -f -- "$0"; )";)
 CONFIG_FOLDER=$(dirname "$AUTOGRADER_FOLDER")

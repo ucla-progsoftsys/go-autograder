@@ -7,9 +7,12 @@ FROM --platform=linux/amd64 gradescope/autograder-base:ubuntu-22.04
 RUN mkdir -p /autograder/source
 
 # Copy all files from the build context to the autograder source directory
-COPY ./go_autograder /autograder/source
+COPY ./go-autograder /autograder/source
 COPY ./autograder.config.json /autograder/source/autograder.config.json
 COPY ./replacement_files /autograder/source/replacement_files
+COPY ./required_files.txt /autograder/source/required_files.txt
+COPY ./custom_setup.sh /autograder/source/custom_setup.sh
+COPY ./custom_run_autograder.sh /autograder/source/custom_run_autograder.sh
 
 # Copy the run_autograder script to the required location
 RUN cp /autograder/source/run_autograder /autograder/run_autograder
