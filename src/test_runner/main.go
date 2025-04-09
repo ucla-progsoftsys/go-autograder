@@ -32,5 +32,5 @@ func main() {
 	}
 
 	file, _ := json.MarshalIndent(res, "", " ")
-	_ = os.WriteFile("/autograder/source/results.json", file, 0644)
+	_ = os.WriteFile("/autograder/results/results.json", file, 0644)
 }

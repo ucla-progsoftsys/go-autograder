@@ -134,13 +134,13 @@ func JsonTestRunner() (result AutograderOutput, err error) {
 		}
 
 		// Run go test with the specific test name
-		args := []string{"test", "-v"}
+		args := []string{"-u", "student", "--", "go", "test", "-v"}
 		if testConfig.Timeout != "" {
 			args = append(args, "-timeout", testConfig.Timeout)
 		}
 		args = append(args, "-run", "^"+testConfig.Name+"$", "./...")
 		// Print args
-		cmd := exec.Command("go", args...)
+		cmd := exec.Command("runuser", args...)
 		out, err := cmd.CombinedOutput()
 
 		// Initialize exitCode to 0 (success)
