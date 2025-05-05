@@ -33,7 +33,8 @@ This JSON file is where you will configure your autograder for your particular a
             "points": 5, // The point value of the test case
             "visibility": "visible", // Optional visibility setting for test case: visible, hidden, after_due_date, after_published
             "folder": "main", // Optional directory to run go test in, relative to root folder of submission files
-            "timeout": "600s" // Optional test timeout for go test command - fails if it goes beyond this time
+            "timeout": "600s", // Optional test timeout for go test command - fails if it goes beyond this time
+            "count": 4 // Optional: specify number of times to run test case - if it fails once, entire test case fails. Note that timeouts (if set) are per run, not across all runs in a single test case
         },
         {
             "name": "TestAddTwoNegativeNumbers",

@@ -21,6 +21,7 @@ type AutograderConfig struct {
 		Visibility string  `json:"visibility,omitempty"`
 		Folder     string  `json:"folder,omitempty"`
 		Timeout    string	`json:"timeout,omitempty"`
+		Count	   int     `json:"count,omitempty"`
 	} `json:"tests"`
 }
 
@@ -139,40 +140,65 @@ func JsonTestRunner() (result AutograderOutput, err error) {
 			args = append(args, "-timeout", testConfig.Timeout)
 		}
 		args = append(args, "-run", "^"+testConfig.Name+"$", "./...")
-		// Print args
-		cmd := exec.Command("runuser", args...)
-		out, err := cmd.CombinedOutput()
-
-		// Initialize exitCode to 0 (success)
-		exitCode := 0
-
-		// Check if the command failed and extract the exit code
-		if err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				// Command exited with a non-zero status
-				exitCode = exitErr.ExitCode()
-			} else {
-				// Some other error occurred
-				exitCode = 1
-			}
-		}
-		// Parse the output for this specific test
+		
+		// Initialize test result
 		var singleTestResult struct {
 			Passed bool
 			Output string
 		}
-		if exitCode == 0 {
-			singleTestResult.Passed = true
-		} else {
-			singleTestResult.Passed = false
+		singleTestResult.Passed = true // Assume passed until proven otherwise
+		
+		// Check if we need to run this test multiple times
+		runCount := 1
+		if testConfig.Count > 0 {
+			runCount = testConfig.Count
 		}
-		singleTestResult.Output = string(out)
+		
+		// Run the test the specified number of times
+		for i := 0; i < runCount; i++ {
+			if runCount > 1 {
+				fmt.Printf("[%s] Running %s (iteration %d/%d)\n", time.Now().Format(time.RFC3339), testConfig.Name, i+1, runCount)
+			}
+			
+			cmd := exec.Command("runuser", args...)
+			out, err := cmd.CombinedOutput()
+			
+			// Check if the command failed and extract the exit code
+			exitCode := 0
+			if err != nil {
+				if exitErr, ok := err.(*exec.ExitError); ok {
+					exitCode = exitErr.ExitCode()
+				} else {
+					exitCode = 1
+				}
+			}
+			
+			if runCount > 1 {
+				singleTestResult.Output += fmt.Sprintf("\n\n--- Iteration %d/%d ---\n", i+1, runCount)
+			}
+			singleTestResult.Output += string(out)
+			
+			// If any iteration fails, the entire test fails
+			if exitCode != 0 {
+				singleTestResult.Passed = false
+				if runCount > 1 {
+					fmt.Printf("[%s] Test %s failed on iteration %d/%d\n", time.Now().Format(time.RFC3339), testConfig.Name, i+1, runCount)
+				}
+			}
+		}
+		
+		// Add summary for multiple iterations
+		if runCount > 1 {
+			if singleTestResult.Passed {
+				fmt.Printf("[%s] All %d iterations of test %s passed\n", time.Now().Format(time.RFC3339), runCount, testConfig.Name)
+			} else {
+				fmt.Printf("[%s] Test %s failed (at least one of %d iterations failed)\n", time.Now().Format(time.RFC3339), testConfig.Name, runCount)
+			}
+		}
 		
 		testResults[testConfig.Name] = singleTestResult
 		fmt.Printf("[%s] Finished running test: %s\n", time.Now().Format(time.RFC3339), testConfig.Name)
-		fmt.Printf("[%s] Exit code: %d\n", time.Now().Format(time.RFC3339), exitCode)
-
-
+		fmt.Printf("[%s] Test passed: %v\n", time.Now().Format(time.RFC3339), singleTestResult.Passed)
 	}
 
 	// Generate autograder output from test results
