@@ -191,8 +191,10 @@ func JsonTestRunner() (result AutograderOutput, err error) {
 		if runCount > 1 {
 			if singleTestResult.Passed {
 				fmt.Printf("[%s] All %d iterations of test %s passed\n", time.Now().Format(time.RFC3339), runCount, testConfig.Name)
+				singleTestResult.Output += fmt.Sprintf("\n\n--- Summary ---\nAll %d iterations passed.\n", runCount)
 			} else {
 				fmt.Printf("[%s] Test %s failed (at least one of %d iterations failed)\n", time.Now().Format(time.RFC3339), testConfig.Name, runCount)
+				singleTestResult.Output += fmt.Sprintf("\n\n--- Summary ---\nAt least one of the %d iterations failed.\n", runCount)
 			}
 		}
 		
