@@ -58,7 +58,7 @@ func UploadLog(filePath string) (string, string, error) {
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get file info: %v", err)
 	}
-	if fileInfo.Size() > 1<<30 / 100 { // 0.1GB
+	if fileInfo.Size() > 1<<30 / 10 { // 0.1GB
 		return "", "", fmt.Errorf("compressed file is larger than 0.1 GB (%v)", fileInfo.Size())
 	}
 
