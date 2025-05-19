@@ -19,13 +19,13 @@ func UploadLog(filePath string) (string, string, error) {
 		return "", "", fmt.Errorf("file does not exist: %v", err)
 	}
 
-	// Check if file is less than 1GB
+	// Check if file is less than 32GB
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get file info: %v", err)
 	}
-	if fileInfo.Size() > 1<<30 { // 1GB
-		return "", "", fmt.Errorf("file is larger than 1GB")
+	if fileInfo.Size() > 1<<30 * 32 { // 32GB
+		return "", "", fmt.Errorf("file is larger than 32 GB")
 	}
 	
 	// Generate random password (32 alphanumeric characters)
@@ -53,6 +53,15 @@ func UploadLog(filePath string) (string, string, error) {
 		return "", "", fmt.Errorf("failed to zip data: %v", err)
 	}
 	
+	// Check if zip file is less than 0.1GB
+	fileInfo, err = os.Stat(zipPath)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get file info: %v", err)
+	}
+	if fileInfo.Size() > 1<<30 / 100 { // 0.1GB
+		return "", "", fmt.Errorf("compressed file is larger than 0.1 GB")
+	}
+
 	// Upload to bashupload.com
 	curlCmd := exec.Command("curl", "-s", "--data-binary", "@"+zipPath, "https://bashupload.com/results.zip")
 	output, err := curlCmd.Output()
