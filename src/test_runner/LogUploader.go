@@ -48,7 +48,7 @@ func UploadLog(filePath string) (string, string, error) {
 	
 	// Create zip file with password
 	zipPath := filepath.Join(tempDir, "log_data.zip")
-	zipCmd := exec.Command("zip", "-j", "-P", password, zipPath, filePath)
+	zipCmd := exec.Command("zip", "-j", "-9", "-P", password, zipPath, filePath)
 	if err := zipCmd.Run(); err != nil {
 		return "", "", fmt.Errorf("failed to zip data: %v", err)
 	}
