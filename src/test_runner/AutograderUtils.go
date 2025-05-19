@@ -22,6 +22,7 @@ type AutograderConfig struct {
 		Timeout    string	`json:"timeout,omitempty"`
 		Count	   int     `json:"count,omitempty"`
 	} `json:"tests"`
+	Uploader string `json:"uploader,omitempty"`
 }
 
 // TestResult is a struct that represents the result of a test case in Gradescope's specifications
@@ -40,6 +41,7 @@ type TestResult struct {
 type AutograderOutput struct {
 	Visibility string       `json:"visibility,omitempty"`
 	Tests      []TestResult `json:"tests"`
+	Output    string       `json:"output,omitempty"`
 }
 
 func FileChecker() (missingFiles []string) {
@@ -70,7 +72,7 @@ func FileChecker() (missingFiles []string) {
 
 func GetJsonConfig() (autograderConfig AutograderConfig, err error) {
 	// Open the autograderconfig JSON file
-	testConfigPath, err := filepath.Abs("../../autograder.config.json")
+	testConfigPath, err := filepath.Abs("/autograder/source/autograder.config.json")
 	if err != nil {
 		return
 	}
@@ -132,7 +134,7 @@ func JsonTestRunner() (result AutograderOutput, err error) {
 		if testConfig.Timeout != "" {
 			args = append(args, "-timeout", testConfig.Timeout)
 		}
-		args = append(args, "-run", "^"+testConfig.Name+"$", "./...")
+		args = append(args, "-run", "^"+testConfig.Name+"$", ".")
 		
 		// Initialize test result
 		res := TestResult{

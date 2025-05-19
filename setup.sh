@@ -7,7 +7,7 @@ if [ -f /autograder/source/custom_setup.sh ]; then
     source /autograder/source/custom_setup.sh
 fi
 
-apt-get update && apt-get install -y wget rsync
+apt-get update && apt-get install -y wget rsync curl zip
 # Define Go version to install
 
 # Install Go

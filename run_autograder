@@ -36,6 +36,6 @@ touch /autograder/results/results.json
 chown root:root /autograder/results/results.json
 chmod 600 /autograder/results/results.json
 
-# Build a run the test_runner program
+# Build and run the test_runner program
 go build .
 ./test_runner
