@@ -25,7 +25,7 @@ func UploadLog(filePath string) (string, string, error) {
 		return "", "", fmt.Errorf("failed to get file info: %v", err)
 	}
 	if fileInfo.Size() > 1<<30 * 32 { // 32GB
-		return "", "", fmt.Errorf("file is larger than 32 GB")
+		return "", "", fmt.Errorf("file is larger than 32 GB: %v", fileInfo.Size())
 	}
 	
 	// Generate random password (32 alphanumeric characters)
@@ -59,7 +59,7 @@ func UploadLog(filePath string) (string, string, error) {
 		return "", "", fmt.Errorf("failed to get file info: %v", err)
 	}
 	if fileInfo.Size() > 1<<30 / 100 { // 0.1GB
-		return "", "", fmt.Errorf("compressed file is larger than 0.1 GB")
+		return "", "", fmt.Errorf("compressed file is larger than 0.1 GB (%v)", fileInfo.Size())
 	}
 
 	// Upload to bashupload.com

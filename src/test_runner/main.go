@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"runtime"
 )
 
 func main() {
@@ -35,6 +36,11 @@ func main() {
 	}
 	file, _ := json.MarshalIndent(res, "", " ")
 	_ = os.WriteFile("/autograder/results/results.json", file, 0644)
+	// Set file to nil and run GC to free up memory
+	file = nil
+	_ = ""
+	runtime.GC()
+
 	if jsonConfig.Uploader != "" {
 		switch jsonConfig.Uploader {
 			case "bashupload.com":
