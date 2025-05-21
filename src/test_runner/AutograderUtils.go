@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -81,7 +82,8 @@ type User struct {
 // PreviousSubmission represents a previous submission in submission_history.json
 type PreviousSubmission struct {
 	SubmissionTime  string          `json:"submission_time"`
-	Score           float64         `json:"score"`
+	ScoreString           string         `json:"score"` // For some reason, score is a string
+	Score float64            `json:"score_as_integer,omitempty"`
 	AutograderError bool            `json:"autograder_error"`
 	Results         json.RawMessage `json:"results"` // Using RawMessage for the nested results object
 }
@@ -150,9 +152,12 @@ func GetSubmissionHistory() (submissionHistory SubmissionHistory, err error) {
 	if err != nil {
 		return
 	}
+	// Convert string scores to float values
+	for i := range submissionHistory.PreviousSubmissions {
+		submissionHistory.PreviousSubmissions[i].Score, _ = strconv.ParseFloat(submissionHistory.PreviousSubmissions[i].ScoreString, 64)
+	}
 
 	return
-
 }
 
 
