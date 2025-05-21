@@ -23,6 +23,10 @@ type AutograderConfig struct {
 		Count	   int     `json:"count,omitempty"`
 	} `json:"tests"`
 	Uploader string `json:"uploader,omitempty"`
+	Ratelimit struct {
+		Count int `json:"count"`
+		Minutes int `json:"minutes"`
+	} `json:"ratelimit,omitempty"`
 }
 
 // TestResult is a struct that represents the result of a test case in Gradescope's specifications
@@ -42,6 +46,44 @@ type AutograderOutput struct {
 	Visibility string       `json:"visibility,omitempty"`
 	Tests      []TestResult `json:"tests"`
 	Output    string       `json:"output,omitempty"`
+}
+
+// SubmissionHistory represents the submission_history.json file
+type SubmissionHistory struct {
+	ID                 int                  `json:"id"`
+	CreatedAt          string               `json:"created_at"`
+	Assignment         Assignment           `json:"assignment"`
+	SubmissionMethod   string               `json:"submission_method"`
+	Users              []User               `json:"users"`
+	PreviousSubmissions []PreviousSubmission `json:"previous_submissions"`
+}
+
+// Assignment represents the assignment details in submission_history.json
+type Assignment struct {
+	DueDate         string      `json:"due_date"`
+	GroupSize       *int        `json:"group_size"` // Using pointer to handle null
+	GroupSubmission bool        `json:"group_submission"`
+	ID              int         `json:"id"`
+	CourseID        int         `json:"course_id"`
+	LateDueDate     *string     `json:"late_due_date"` // Using pointer to handle null
+	ReleaseDate     string      `json:"release_date"`
+	Title           string      `json:"title"`
+	TotalPoints     string      `json:"total_points"`
+}
+
+// User represents a user in the submission_history.json
+type User struct {
+	Email string `json:"email"`
+	ID    int    `json:"id"`
+	Name  string `json:"name"`
+}
+
+// PreviousSubmission represents a previous submission in submission_history.json
+type PreviousSubmission struct {
+	SubmissionTime  string          `json:"submission_time"`
+	Score           float64         `json:"score"`
+	AutograderError bool            `json:"autograder_error"`
+	Results         json.RawMessage `json:"results"` // Using RawMessage for the nested results object
 }
 
 func FileChecker() (missingFiles []string) {
@@ -71,7 +113,7 @@ func FileChecker() (missingFiles []string) {
 }
 
 func GetJsonConfig() (autograderConfig AutograderConfig, err error) {
-	// Open the autograderconfig JSON file
+	// Open the autograder config JSON file
 	testConfigPath, err := filepath.Abs("/autograder/source/autograder.config.json")
 	if err != nil {
 		return
@@ -89,6 +131,28 @@ func GetJsonConfig() (autograderConfig AutograderConfig, err error) {
 	}
 
 	return
+}
+
+func GetSubmissionHistory() (submissionHistory SubmissionHistory, err error) {
+	// Open the submission history JSON file
+	submissionHistoryPath, err := filepath.Abs("/autograder/submission_metadata.json")
+	if err != nil {
+		return
+	}
+
+	file, err := os.ReadFile(submissionHistoryPath)
+	if err != nil {
+		return
+	}
+
+	// Parse the JSON into an array of testConfig structs
+	err = json.Unmarshal(file, &submissionHistory)
+	if err != nil {
+		return
+	}
+
+	return
+
 }
 
 
