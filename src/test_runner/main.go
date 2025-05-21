@@ -53,7 +53,7 @@ func main() {
 
 	// Count number of submissions within last X hours as defined in the config
 	if (submissionHistoryErr == nil && jsonConfig.Ratelimit.Count > 0) && (jsonConfig.Ratelimit.Minutes > 0) {
-		count := 0
+		count := 1
 		thisSubmissionTime, err := time.Parse(time.RFC3339Nano, submissionHistory.CreatedAt)
 		if err != nil {
 			log.Printf("Error parsing submission time: %v\n", err)
@@ -74,7 +74,7 @@ func main() {
 			}
 		}
 		outputChanged = true
-		if count >= jsonConfig.Ratelimit.Count {
+		if count > jsonConfig.Ratelimit.Count {
 			ratelimitExceeded = true
 			res.Output += fmt.Sprintf("Rate limit exceeded. You have submitted %d time(s) in the last %d minutes; not uploading log\n", count, jsonConfig.Ratelimit.Minutes)
 			log.Printf("Rate limit exceeded: %d submission(s) in the last %d minutes.\n", count, jsonConfig.Ratelimit.Minutes)
