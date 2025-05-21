@@ -76,10 +76,10 @@ func main() {
 		outputChanged = true
 		if count >= jsonConfig.Ratelimit.Count {
 			ratelimitExceeded = true
-			res.Output = fmt.Sprintf("Rate limit exceeded. You have submitted %d time(s) in the last %d minutes; not uploading log\n", count, jsonConfig.Ratelimit.Minutes)
+			res.Output += fmt.Sprintf("Rate limit exceeded. You have submitted %d time(s) in the last %d minutes; not uploading log\n", count, jsonConfig.Ratelimit.Minutes)
 			log.Printf("Rate limit exceeded: %d submission(s) in the last %d minutes.\n", count, jsonConfig.Ratelimit.Minutes)
 		} else {
-			res.Output = fmt.Sprintf("You have submitted %d time(s) in the last %d minutes.\n", count, jsonConfig.Ratelimit.Minutes)
+			res.Output += fmt.Sprintf("You have submitted %d time(s) in the last %d minutes.\n", count, jsonConfig.Ratelimit.Minutes)
 			log.Printf("Rate limit count: %d submission(s) in the last %d minutes.\n", count, jsonConfig.Ratelimit.Minutes)
 		}
 	}
@@ -90,9 +90,9 @@ func main() {
 					password, url, err := UploadLog("/autograder/results/results.json")
 					if err == nil {
 						log.Printf("Log uploaded successfully. URL: %s, Password: %s\n", url, password)
-						res.Output = "Log uploaded successfully. URL (stored for 3 days, max one download): " + url + "\nPassword: " + password
+						res.Output += fmt.Sprintf("Log uploaded successfully. URL (stored for 3 days, max one download): %s\nPassword: %s\n", url, password)
 					} else {
-						res.Output = "Log upload failed: " + err.Error()
+						res.Output += fmt.Sprintf("Log upload failed: %s\n", err.Error())
 						log.Printf("Log upload failed: %v\n", err)
 					}
 				default:
