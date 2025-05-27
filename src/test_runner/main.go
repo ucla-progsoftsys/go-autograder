@@ -11,6 +11,13 @@ import (
 )
 
 func main() {
+	// Write output if the autograder crashes (probably due to OOM)
+	var tempRes AutograderOutput
+	tempRes.Tests = []TestResult{TestResult{ Score: 0, MaxScore: 1, Name: "Autograder Crash", Number: "0", Output: "The autograder has crashed while running, likely due to running out of memory. Note that printed output is stored in-memory, so avoid printing large amounts of data such as values in the key-value database.", Visibility: "visible" }}
+	file2, _ := json.MarshalIndent(tempRes, "", " ")
+	_ = os.WriteFile("/autograder/results/results.json", file2, 0644)
+	StartRamChecker()
+
 	missingFiles := FileChecker()
 	jsonConfig, err := GetJsonConfig()
 	submissionHistory, submissionHistoryErr := GetSubmissionHistory()
