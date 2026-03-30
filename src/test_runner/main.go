@@ -94,6 +94,7 @@ func main() {
 		if jsonConfig.Uploader != "" {
 			switch jsonConfig.Uploader {
 				case "bashupload.com":
+					/*
 					password, url, err := UploadLog("/autograder/results/results.json")
 					if err == nil {
 						log.Printf("Log uploaded successfully. URL: %s, Password: %s\n", url, password)
@@ -102,6 +103,9 @@ func main() {
 						res.Output += fmt.Sprintf("Log upload failed: %s\n", err.Error())
 						log.Printf("Log upload failed: %v\n", err)
 					}
+					*/
+					res.Output += "Log upload is deprecated and has been disabled.\n"
+					log.Printf("Log upload requested with deprecated uploader: %s\n", jsonConfig.Uploader)
 				default:
 					log.Printf("Unknown uploader: %s\n", jsonConfig.Uploader)
 			}

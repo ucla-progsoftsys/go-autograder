@@ -1,19 +1,14 @@
 package main
 
 import (
-	"crypto/rand"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
+	"errors"
 )
 
-
-// UploadLog compresses, encrypts and uploads log data to bashupload.com
-// Takes a file path to the log file rather than the actual data
-// Returns the encryption password and the URL where the file was uploaded
+// Deprecated: Log upload via external providers has been deprecated and disabled.
 func UploadLog(filePath string) (string, string, error) {
+	/*
+	// Original implementation (deprecated) retained for reference.
+
 	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return "", "", fmt.Errorf("file does not exist: %v", err)
@@ -27,7 +22,7 @@ func UploadLog(filePath string) (string, string, error) {
 	if fileInfo.Size() > 1<<30 * 32 { // 32GB
 		return "", "", fmt.Errorf("file is larger than 32 GB: %v", fileInfo.Size())
 	}
-	
+
 	// Generate random password (32 alphanumeric characters)
 	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	password := ""
@@ -38,21 +33,21 @@ func UploadLog(filePath string) (string, string, error) {
 	for i := 0; i < 32; i++ {
 		password += string(chars[randomBytes[i]%byte(len(chars))])
 	}
-	
+
 	// Create temporary directory for the zip file
 	tempDir, err := os.MkdirTemp("", "logupload")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tempDir)
-	
+
 	// Create zip file with password
 	zipPath := filepath.Join(tempDir, "log_data.zip")
 	zipCmd := exec.Command("zip", "-j", "-9", "-P", password, zipPath, filePath)
 	if err := zipCmd.Run(); err != nil {
 		return "", "", fmt.Errorf("failed to zip data: %v", err)
 	}
-	
+
 	// Check if zip file is less than 0.1GB
 	fileInfo, err = os.Stat(zipPath)
 	if err != nil {
@@ -62,17 +57,17 @@ func UploadLog(filePath string) (string, string, error) {
 		return "", "", fmt.Errorf("compressed file is larger than 0.1 GB (%v)", fileInfo.Size())
 	}
 
-	// Upload to bashupload.com
-	curlCmd := exec.Command("curl", "-s", "--data-binary", "@"+zipPath, "https://bashupload.com/results.zip")
+	// Upload to bashupload.app
+	curlCmd := exec.Command("curl", "-s", "--data-binary", "@"+zipPath, "https://bashupload.app/results.zip")
 	output, err := curlCmd.Output()
 	if err != nil {
 		return "", "", fmt.Errorf("failed to upload data: %v", err)
 	}
-	
+
 	// Extract URL from curl output
 	outputStr := string(output)
 	urlLine := ""
-	
+
 	lines := strings.Split(outputStr, "\n")
 	for _, line := range lines {
 		if strings.Contains(line, "wget") || strings.Contains(line, "curl") {
@@ -80,11 +75,11 @@ func UploadLog(filePath string) (string, string, error) {
 			break
 		}
 	}
-	
+
 	if urlLine == "" {
 		return "", "", fmt.Errorf("failed to extract URL from response")
 	}
-	
+
 	// Extract actual URL from response line
 	parts := strings.Fields(urlLine)
 	var url string
@@ -94,10 +89,14 @@ func UploadLog(filePath string) (string, string, error) {
 			break
 		}
 	}
-	
+
 	if url == "" {
 		return "", "", fmt.Errorf("URL not found in response")
 	}
-	
+
 	return password, url, nil
+	*/
+
+	_ = filePath
+	return "", "", errors.New("log uploader is deprecated and disabled")
 }
