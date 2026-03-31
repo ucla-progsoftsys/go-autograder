@@ -2,12 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"runtime"
-	"time"
-	"fmt"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -46,6 +46,7 @@ func main() {
 			log.Fatalf("Error: %v\n", err)
 		}
 		ApplyLatePenalty(&res)
+		res.Output += "Please note: the automatically generated autograder score when you submit is not your final score. We will rerun the autograder once after submission closes on your active submission to determine your actual project score."
 	}
 	file, _ := json.MarshalIndent(res, "", " ")
 	_ = os.WriteFile("/autograder/results/results.json", file, 0644)
