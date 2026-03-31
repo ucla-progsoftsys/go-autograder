@@ -10,7 +10,7 @@ import (
 )
 
 // ApplyLatePenalty applies an exponential deduction by late day:
-// n days late => 3^(n-1)% deduction, capped at 100%.
+// n days late (rounded up) => 2^(n-1)% deduction, capped at 100%.
 func ApplyLatePenalty(res *AutograderOutput) {
 	lateDays, details, err := getLateDaysFromMetadata("/autograder/submission_metadata.json")
 	if err != nil {
@@ -32,7 +32,7 @@ func ApplyLatePenalty(res *AutograderOutput) {
 		return
 	}
 
-	deductionPercent := math.Pow(3, float64(lateDays-1))
+	deductionPercent := math.Pow(2, float64(lateDays-1))
 	if deductionPercent > 100 {
 		deductionPercent = 100
 	}
@@ -120,6 +120,8 @@ func getLateDaysFromMetadata(metadataPath string) (int, string, error) {
 
 	details += fmt.Sprintf("Due Date: %s\n", dueDate.Format(time.RFC3339))
 	details += fmt.Sprintf("Submission time: %s\n", submissionDate.Format(time.RFC3339))
+	
+	// Rounds timestamps down to nearest minute, e.g. 10:00:59pm becomes 10:00pm, on time if due at 10:00pm
 	graceThreshold := dueDate.Add(time.Minute)
 
 	lateDays := 0
