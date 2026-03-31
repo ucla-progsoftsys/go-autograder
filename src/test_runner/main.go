@@ -45,7 +45,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("Error: %v\n", err)
 		}
-	
+		ApplyLatePenalty(&res)
 	}
 	file, _ := json.MarshalIndent(res, "", " ")
 	_ = os.WriteFile("/autograder/results/results.json", file, 0644)
