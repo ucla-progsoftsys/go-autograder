@@ -89,10 +89,7 @@ type PreviousSubmission struct {
 }
 
 func FileChecker() (missingFiles []string) {
-	requiredFilesPath, err := filepath.Abs("../../required_files.txt")
-	if err != nil {
-		return nil
-	}
+	requiredFilesPath := RequiredFilesFile
 
 	file, err := os.Open(requiredFilesPath)
 	if err != nil {
@@ -106,7 +103,7 @@ func FileChecker() (missingFiles []string) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		// Check if the file exists
-		if _, err := os.Stat("/autograder/submission/" + scanner.Text()); os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(SubmissionDir, scanner.Text())); os.IsNotExist(err) {
 			missingFiles = append(missingFiles, scanner.Text())
 		}
 	}
@@ -116,10 +113,7 @@ func FileChecker() (missingFiles []string) {
 
 func GetJsonConfig() (autograderConfig AutograderConfig, err error) {
 	// Open the autograder config JSON file
-	testConfigPath, err := filepath.Abs("/autograder/source/autograder.config.json")
-	if err != nil {
-		return
-	}
+	testConfigPath := ConfigFile
 
 	file, err := os.ReadFile(testConfigPath)
 	if err != nil {
@@ -137,10 +131,7 @@ func GetJsonConfig() (autograderConfig AutograderConfig, err error) {
 
 func GetSubmissionHistory() (submissionHistory SubmissionHistory, err error) {
 	// Open the submission history JSON file
-	submissionHistoryPath, err := filepath.Abs("/autograder/submission_metadata.json")
-	if err != nil {
-		return
-	}
+	submissionHistoryPath := SubmissionMetadataFile
 
 	file, err := os.ReadFile(submissionHistoryPath)
 	if err != nil {
@@ -161,21 +152,11 @@ func GetSubmissionHistory() (submissionHistory SubmissionHistory, err error) {
 }
 
 
-func JsonTestRunner() (result AutograderOutput, err error) {
-	// Open the autograderconfig JSON file
-	autograderConfig, err := GetJsonConfig()
-	if err != nil {
-		return
-	}
-
+func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput, err error) {
 	// Run all the tests within the submission folder
-	wd, err := os.Getwd()
-	if err != nil {
-		return
-	}
 
 	// Change working directory to the student submission
-	err = os.Chdir(fmt.Sprintf("%v/../../submission", wd))
+	err = os.Chdir(SubmissionDir)
 	if err != nil {
 		return
 	}
@@ -185,13 +166,13 @@ func JsonTestRunner() (result AutograderOutput, err error) {
 		fmt.Printf("[%s] Running test: %s\n", time.Now().Format(time.RFC3339), testConfig.Name)
 		// Change working directory to the test folder if specified
 		if testConfig.Folder != "" {
-			err = os.Chdir(fmt.Sprintf("%v/../../submission/%s", wd, testConfig.Folder))
+			err = os.Chdir(filepath.Join(SubmissionDir, testConfig.Folder))
 			if err != nil {
 				fmt.Printf("Error changing directory to %s: %v\n", testConfig.Folder, err)
 				return
 			}
 		} else {
-			err = os.Chdir(fmt.Sprintf("%v/../../submission", wd))
+			err = os.Chdir(SubmissionDir)
 			if err != nil {
 				fmt.Printf("Error changing directory to submission: %v\n", err)
 				return
@@ -212,6 +193,10 @@ func JsonTestRunner() (result AutograderOutput, err error) {
 			Name:       testConfig.Name,
 			Number:     testConfig.Number,
 			Visibility: testConfig.Visibility,
+		}
+
+		if testConfig.Timeout != "" {
+			res.Output = fmt.Sprintf("Timeout: %s\n", testConfig.Timeout)
 		}
 
 		// Prepend folder name to the test name if specified

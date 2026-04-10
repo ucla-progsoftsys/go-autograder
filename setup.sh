@@ -25,3 +25,8 @@ chmod 700 /autograder/results
 
 mkdir -p /autograder/source
 chmod -R 755 /autograder/source
+
+# Build the test_runner program
+cd /autograder/source/src/test_runner
+go build -o /autograder/test_runner .
+chmod +x /autograder/test_runner

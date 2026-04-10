@@ -15,19 +15,21 @@ func main() {
 	var tempRes AutograderOutput
 	tempRes.Tests = []TestResult{TestResult{ Score: 0, MaxScore: 1, Name: "Autograder Crash", Number: "0", Output: "The autograder has crashed while running, likely due to running out of memory. Note that printed output is stored in-memory, so avoid printing large amounts of data such as values in the key-value database.", Visibility: "visible" }}
 	file2, _ := json.MarshalIndent(tempRes, "", " ")
-	_ = os.WriteFile("/autograder/results/results.json", file2, 0644)
+	_ = os.WriteFile(ResultsFile, file2, 0644)
 	StartRamChecker()
 
-	missingFiles := FileChecker()
 	jsonConfig, err := GetJsonConfig()
+	if err != nil {
+		log.Fatalf("Error loading config: %v\n", err)
+		os.Exit(1)
+	}
+
+	missingFiles := FileChecker()
 	submissionHistory, submissionHistoryErr := GetSubmissionHistory()
 	if submissionHistoryErr != nil {
 		log.Printf("Error getting submission history: %v\n", submissionHistoryErr)
 	}
-	if err != nil {
-		log.Fatalf("Error: %v\n", err)
-		os.Exit(1)
-	}
+	
 	var res AutograderOutput;
 	if len(missingFiles) > 0 {
 		// Get max points
@@ -41,7 +43,7 @@ func main() {
 		log.Printf("Missing files: %v\n", missingFiles)
 	} else {
 		var err error;
-		res, err = JsonTestRunner()
+		res, err = JsonTestRunner(jsonConfig)
 		if err != nil {
 			log.Fatalf("Error: %v\n", err)
 		}
@@ -49,7 +51,7 @@ func main() {
 		res.Output += "Please note: the automatically generated autograder score when you submit is not your final score. We will rerun the autograder once after submission closes on your active submission to determine your actual project score."
 	}
 	file, _ := json.MarshalIndent(res, "", " ")
-	_ = os.WriteFile("/autograder/results/results.json", file, 0644)
+	_ = os.WriteFile(ResultsFile, file, 0644)
 	// Set file to nil and run GC to free up memory
 	file = nil
 	_ = ""
@@ -117,7 +119,7 @@ func main() {
 
 	if outputChanged {
 		file, _ = json.MarshalIndent(res, "", " ")
-		_ = os.WriteFile("/autograder/results/results.json", file, 0644)
+		_ = os.WriteFile(ResultsFile, file, 0644)
 	}
 
 }
