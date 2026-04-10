@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -185,7 +186,7 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 				Name:       testConfig.Name,
 				Number:     testConfig.Number,
 				Visibility: testConfig.Visibility,
-				Output:     fmt.Sprintf("Error: could not find folder %s\n", folder),
+				Output:     fmt.Sprintf("Error: could not find folder %s\n", absFolder),
 			}
 			if testConfig.Folder != "" {
 				res.Name = fmt.Sprintf("%s/%s", testConfig.Folder, testConfig.Name)
@@ -201,12 +202,25 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 			// Remove old binary if it exists
 			os.Remove("tests.test")
 
-			cmd := exec.Command("runuser", "-u", "student", "--", "go", "test", "-c", "-o", "tests.test")
+			// Use a 60-second timeout for compilation
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			cmd := exec.CommandContext(ctx, "runuser", "-u", "student", "--", "go", "test", "-c", "-o", "tests.test")
 			out, compileErr := cmd.CombinedOutput()
+			cancel() // Call cancel as soon as we're done
 			if compileErr != nil {
 				compilationErrors[folder] = string(out)
-				fmt.Printf("[%s] Compilation failed for folder %s\n", time.Now().Format(time.RFC3339), folder)
+				if ctx.Err() == context.DeadlineExceeded {
+					compilationErrors[folder] = "Compilation timed out after 60 seconds"
+				}
+				fmt.Printf("[%s] Compilation failed for folder %s: %v\n", time.Now().Format(time.RFC3339), folder, compileErr)
 			} else {
+				// Harden security: Make the binary root-owned and read-only for student
+				if err := os.Chown("tests.test", 0, 0); err != nil {
+					fmt.Printf("[%s] Warning: could not chown tests.test: %v\n", time.Now().Format(time.RFC3339), err)
+				}
+				if err := os.Chmod("tests.test", 0555); err != nil {
+					fmt.Printf("[%s] Warning: could not chmod tests.test: %v\n", time.Now().Format(time.RFC3339), err)
+				}
 				compiledBinaries[folder] = true
 				fmt.Printf("[%s] Compilation successful for folder %s\n", time.Now().Format(time.RFC3339), folder)
 			}
