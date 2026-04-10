@@ -161,31 +161,57 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 		return
 	}
 
+	compiledBinaries := make(map[string]bool)
+	compilationErrors := make(map[string]string)
+
 	// Run each test individually
 	for _, testConfig := range autograderConfig.Tests {
 		fmt.Printf("[%s] Running test: %s\n", time.Now().Format(time.RFC3339), testConfig.Name)
-		// Change working directory to the test folder if specified
-		if testConfig.Folder != "" {
-			err = os.Chdir(filepath.Join(SubmissionDir, testConfig.Folder))
-			if err != nil {
-				fmt.Printf("Error changing directory to %s: %v\n", testConfig.Folder, err)
-				return
+		
+		folder := testConfig.Folder
+		absFolder := SubmissionDir
+		if folder != "" {
+			absFolder = filepath.Join(SubmissionDir, folder)
+		}
+
+		// Change working directory to the test folder
+		err = os.Chdir(absFolder)
+		if err != nil {
+			fmt.Printf("Error changing directory to %s: %v\n", absFolder, err)
+			
+			res := TestResult{
+				Score:      0,
+				MaxScore:   testConfig.Points,
+				Name:       testConfig.Name,
+				Number:     testConfig.Number,
+				Visibility: testConfig.Visibility,
+				Output:     fmt.Sprintf("Error: could not find folder %s\n", folder),
 			}
-		} else {
-			err = os.Chdir(SubmissionDir)
-			if err != nil {
-				fmt.Printf("Error changing directory to submission: %v\n", err)
-				return
+			if testConfig.Folder != "" {
+				res.Name = fmt.Sprintf("%s/%s", testConfig.Folder, testConfig.Name)
+			}
+			result.Tests = append(result.Tests, res)
+			continue
+		}
+
+		// Compile test binary if not already done for this folder
+		if !compiledBinaries[folder] && compilationErrors[folder] == "" {
+			fmt.Printf("[%s] Compiling tests in folder: %s\n", time.Now().Format(time.RFC3339), folder)
+			
+			// Remove old binary if it exists
+			os.Remove("tests.test")
+
+			cmd := exec.Command("runuser", "-u", "student", "--", "go", "test", "-c", "-o", "tests.test")
+			out, compileErr := cmd.CombinedOutput()
+			if compileErr != nil {
+				compilationErrors[folder] = string(out)
+				fmt.Printf("[%s] Compilation failed for folder %s\n", time.Now().Format(time.RFC3339), folder)
+			} else {
+				compiledBinaries[folder] = true
+				fmt.Printf("[%s] Compilation successful for folder %s\n", time.Now().Format(time.RFC3339), folder)
 			}
 		}
 
-		// Run go test with the specific test name
-		args := []string{"-u", "student", "--", "go", "test", "-v", "-count=1"}
-		if testConfig.Timeout != "" {
-			args = append(args, "-timeout", testConfig.Timeout)
-		}
-		args = append(args, "-run", "^"+testConfig.Name+"$", ".")
-		
 		// Initialize test result
 		res := TestResult{
 			Score:      testConfig.Points,
@@ -203,6 +229,20 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 		if testConfig.Folder != "" {
 			res.Name = fmt.Sprintf("%s/%s", testConfig.Folder, testConfig.Name)
 		}
+
+		if compilationErrors[folder] != "" {
+			res.Score = 0
+			res.Output += "\nCompilation failed:\n" + compilationErrors[folder]
+			result.Tests = append(result.Tests, res)
+			continue
+		}
+
+		// Prepare args for running the compiled binary
+		args := []string{"-u", "student", "--", "./tests.test", "-test.v", "-test.count=1"}
+		if testConfig.Timeout != "" {
+			args = append(args, "-test.timeout", testConfig.Timeout)
+		}
+		args = append(args, "-test.run", "^"+testConfig.Name+"$")
 		
 		// Check if we need to run this test multiple times
 		runCount := 1
@@ -217,12 +257,12 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 			}
 			
 			cmd := exec.Command("runuser", args...)
-			out, err := cmd.CombinedOutput()
+			out, execErr := cmd.CombinedOutput()
 			
 			// Check if the command failed and extract the exit code
 			exitCode := 0
-			if err != nil {
-				if exitErr, ok := err.(*exec.ExitError); ok {
+			if execErr != nil {
+				if exitErr, ok := execErr.(*exec.ExitError); ok {
 					exitCode = exitErr.ExitCode()
 				} else {
 					exitCode = 1
