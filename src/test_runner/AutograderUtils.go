@@ -99,6 +99,20 @@ type testRunResult struct {
 	exitCode int
 }
 
+func truncateMiddleBytesIfTooLong(output []byte) string {
+	const maxBytes = 100000
+	const keepBytes = 50000
+
+	if len(output) <= maxBytes {
+		return string(output)
+	}
+
+	truncated := make([]byte, 0, maxBytes)
+	truncated = append(truncated, output[:keepBytes]...)
+	truncated = append(truncated, output[len(output)-keepBytes:]...)
+	return string(truncated)
+}
+
 func FileChecker() (missingFiles []string) {
 	requiredFilesPath := RequiredFilesFile
 
@@ -177,7 +191,7 @@ func runGoTest(testDir string, testConfig TestConfig) testRunResult {
 	cmd := exec.Command("runuser", buildGoTestArgs(testConfig)...)
 	cmd.Dir = testDir
 	out, err := cmd.CombinedOutput()
-	result := testRunResult{output: string(out)}
+	result := testRunResult{output: truncateMiddleBytesIfTooLong(out)}
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			result.exitCode = exitErr.ExitCode()
@@ -232,7 +246,7 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 		}
 
 		runResults := make([]testRunResult, runCount)
-		hasFailure := false
+		failureCount := 0
 
 		var wg sync.WaitGroup
 		var failureMu sync.Mutex
@@ -249,7 +263,7 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 				runResults[i] = runGoTest(testDir, testConfig)
 				if runResults[i].exitCode != 0 {
 					failureMu.Lock()
-					hasFailure = true
+					failureCount++
 					failureMu.Unlock()
 					if runCount > 1 {
 						fmt.Printf("[%s] Test %s failed on iteration %d/%d\n", time.Now().Format(time.RFC3339), testConfig.Name, i+1, runCount)
@@ -268,17 +282,17 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 			res.Output += runResult.output
 		}
 
-		if hasFailure {
+		if failureCount > 0 {
 			res.Score = 0
 		}
 
 		if runCount > 1 {
-			if !hasFailure {
+			if failureCount == 0 {
 				fmt.Printf("[%s] All %d iterations of test %s passed\n", time.Now().Format(time.RFC3339), runCount, testConfig.Name)
 				res.Output += fmt.Sprintf("\n\n--- Summary ---\nAll %d iterations passed.\n", runCount)
 			} else {
-				fmt.Printf("[%s] Test %s failed (at least one of %d iterations failed)\n", time.Now().Format(time.RFC3339), testConfig.Name, runCount)
-				res.Output += fmt.Sprintf("\n\n--- Summary ---\nAt least one of the %d iterations failed.\n", runCount)
+				fmt.Printf("[%s] Test %s failed (%d/%d iterations failed)\n", time.Now().Format(time.RFC3339), testConfig.Name, failureCount, runCount)
+				res.Output += fmt.Sprintf("\n\n--- Summary ---\n%d/%d iterations failed.\n", failureCount, runCount)
 			}
 		}
 		if res.Score == 0 {
