@@ -22,10 +22,10 @@ func StartRamChecker() {
 func printMemStats() {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	// Convert bytes to MB for readability
 	allocatedMB := float64(m.Alloc) / 1024 / 1024
 	systemMB := float64(m.Sys) / 1024 / 1024
-	
+
 	log.Printf("RAM Usage: %.2f MB (allocated) / %.2f MB (system)", allocatedMB, systemMB)
 }

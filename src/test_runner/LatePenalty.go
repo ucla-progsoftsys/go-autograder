@@ -1,18 +1,16 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"math"
-	"os"
 	"time"
 )
 
 // ApplyLatePenalty applies an exponential deduction by late day:
 // n days late (rounded up) => 2^(n-1)% deduction, capped at 100%.
-func ApplyLatePenalty(res *AutograderOutput) {
-	lateDays, details, err := getLateDaysFromMetadata("/autograder/submission_metadata.json")
+func ApplyLatePenalty(res *AutograderOutput, history SubmissionMetadata) {
+	lateDays, details, err := getLateDays(history)
 	if err != nil {
 		log.Printf("CAUTION: Late penalty calculator failed: %v", err)
 		res.Output += "CAUTION: Late penalty calculator failed\n"
@@ -60,67 +58,37 @@ func ApplyLatePenalty(res *AutograderOutput) {
 	}}, res.Tests...)
 }
 
-func getLateDaysFromMetadata(metadataPath string) (int, string, error) {
-	file, err := os.ReadFile(metadataPath)
-	if err != nil {
-		return 0, "", err
+func getLateDays(metadata SubmissionMetadata) (int, string, error) {
+	if metadata.CreatedAt == "" {
+		return 0, "", fmt.Errorf("missing submission created_at")
 	}
-
-	var metadata map[string]any
-	if err := json.Unmarshal(file, &metadata); err != nil {
-		return 0, "", err
-	}
-
-	assignmentMap, ok := metadata["assignment"].(map[string]any)
-	if !ok {
-		return 0, "", fmt.Errorf("missing assignment block")
-	}
-
-	dueDateRaw, ok := assignmentMap["due_date"].(string)
-	if !ok || dueDateRaw == "" {
+	if metadata.Assignment.DueDate == "" {
 		return 0, "", fmt.Errorf("missing assignment due_date")
 	}
 
-	submissionDateRaw, ok := metadata["created_at"].(string)
-	if !ok || submissionDateRaw == "" {
-		return 0, "", fmt.Errorf("missing submission created_at")
-	}
-
-	dueDate, err := parseISODateTime(dueDateRaw)
+	dueDate, err := parseISODateTime(metadata.Assignment.DueDate)
 	if err != nil {
 		return 0, "", fmt.Errorf("invalid due_date: %w", err)
 	}
 
-	submissionDate, err := parseISODateTime(submissionDateRaw)
+	submissionDate, err := parseISODateTime(metadata.CreatedAt)
 	if err != nil {
 		return 0, "", fmt.Errorf("invalid created_at: %w", err)
 	}
 
 	details := ""
-	if usersAny, exists := metadata["users"]; exists {
-		if users, ok := usersAny.([]any); ok && len(users) > 0 {
-			if firstUser, ok := users[0].(map[string]any); ok {
-				if userAssignmentAny, ok := firstUser["assignment"]; ok {
-					if userAssignment, ok := userAssignmentAny.(map[string]any); ok {
-						if userDueRawAny, exists := userAssignment["due_date"]; exists {
-							if userDueRaw, isString := userDueRawAny.(string); isString && userDueRaw != "" {
-								userDueDate, err := parseISODateTime(userDueRaw)
-								if err != nil {
-									return 0, "", fmt.Errorf("invalid user-specific due_date: %w", err)
-								}
-								dueDate = userDueDate
-								details += "Using user-specific due date\n"
-							}
-						}
-					}
-				}
-			}
+	if len(metadata.Users) > 0 && metadata.Users[0].Assignment != nil && metadata.Users[0].Assignment.DueDate != "" {
+		userDueDate, err := parseISODateTime(metadata.Users[0].Assignment.DueDate)
+		if err != nil {
+			return 0, "", fmt.Errorf("invalid user-specific due_date: %w", err)
 		}
+		dueDate = userDueDate
+		details += "Using user-specific due date\n"
 	}
 
 	details += fmt.Sprintf("Due Date: %s\n", dueDate.Format(time.RFC3339))
 	details += fmt.Sprintf("Submission time: %s\n", submissionDate.Format(time.RFC3339))
-	
+
 	// Rounds timestamps down to nearest minute, e.g. 10:00:59pm becomes 10:00pm, on time if due at 10:00pm
 	graceThreshold := dueDate.Add(time.Minute)
 

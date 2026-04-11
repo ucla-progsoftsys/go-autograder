@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,12 +22,13 @@ type AutograderConfig struct {
 		Points     float64 `json:"points"`
 		Visibility string  `json:"visibility,omitempty"`
 		Folder     string  `json:"folder,omitempty"`
-		Timeout    string	`json:"timeout,omitempty"`
-		Count	   int     `json:"count,omitempty"`
+		Timeout    string  `json:"timeout,omitempty"`
+		Count      int     `json:"count,omitempty"`
+		Race       bool    `json:"race,omitempty"`
 	} `json:"tests"`
-	Uploader string `json:"uploader,omitempty"`
+	Uploader  string `json:"uploader,omitempty"`
 	Ratelimit struct {
-		Count int `json:"count"`
+		Count   int `json:"count"`
 		Minutes int `json:"minutes"`
 	} `json:"ratelimit,omitempty"`
 }
@@ -46,44 +49,45 @@ type TestResult struct {
 type AutograderOutput struct {
 	Visibility string       `json:"visibility,omitempty"`
 	Tests      []TestResult `json:"tests"`
-	Output    string       `json:"output,omitempty"`
+	Output     string       `json:"output,omitempty"`
 }
 
-// SubmissionHistory represents the submission_history.json file
-type SubmissionHistory struct {
-	ID                 int                  `json:"id"`
-	CreatedAt          string               `json:"created_at"`
-	Assignment         Assignment           `json:"assignment"`
-	SubmissionMethod   string               `json:"submission_method"`
-	Users              []User               `json:"users"`
+// SubmissionMetadata represents the submission_metadata.json file
+type SubmissionMetadata struct {
+	ID                  int                  `json:"id"`
+	CreatedAt           string               `json:"created_at"`
+	Assignment          Assignment           `json:"assignment"`
+	SubmissionMethod    string               `json:"submission_method"`
+	Users               []User               `json:"users"`
 	PreviousSubmissions []PreviousSubmission `json:"previous_submissions"`
 }
 
 // Assignment represents the assignment details in submission_history.json
 type Assignment struct {
-	DueDate         string      `json:"due_date"`
-	GroupSize       *int        `json:"group_size"` // Using pointer to handle null
-	GroupSubmission bool        `json:"group_submission"`
-	ID              int         `json:"id"`
-	CourseID        int         `json:"course_id"`
-	LateDueDate     *string     `json:"late_due_date"` // Using pointer to handle null
-	ReleaseDate     string      `json:"release_date"`
-	Title           string      `json:"title"`
-	TotalPoints     string      `json:"total_points"`
+	DueDate         string  `json:"due_date"`
+	GroupSize       *int    `json:"group_size"` // Using pointer to handle null
+	GroupSubmission bool    `json:"group_submission"`
+	ID              int     `json:"id"`
+	CourseID        int     `json:"course_id"`
+	LateDueDate     *string `json:"late_due_date"` // Using pointer to handle null
+	ReleaseDate     string  `json:"release_date"`
+	Title           string  `json:"title"`
+	TotalPoints     string  `json:"total_points"`
 }
 
 // User represents a user in the submission_history.json
 type User struct {
-	Email string `json:"email"`
-	ID    int    `json:"id"`
-	Name  string `json:"name"`
+	Email      string      `json:"email"`
+	ID         int         `json:"id"`
+	Name       string      `json:"name"`
+	Assignment *Assignment `json:"assignment,omitempty"`
 }
 
 // PreviousSubmission represents a previous submission in submission_history.json
 type PreviousSubmission struct {
 	SubmissionTime  string          `json:"submission_time"`
-	ScoreString           string         `json:"score"` // For some reason, score is a string
-	Score float64            `json:"score_as_integer,omitempty"`
+	ScoreString     string          `json:"score"` // For some reason, score is a string
+	Score           float64         `json:"score_as_integer,omitempty"`
 	AutograderError bool            `json:"autograder_error"`
 	Results         json.RawMessage `json:"results"` // Using RawMessage for the nested results object
 }
@@ -107,7 +111,7 @@ func FileChecker() (missingFiles []string) {
 			missingFiles = append(missingFiles, scanner.Text())
 		}
 	}
-	
+
 	return missingFiles
 }
 
@@ -129,28 +133,50 @@ func GetJsonConfig() (autograderConfig AutograderConfig, err error) {
 	return
 }
 
-func GetSubmissionHistory() (submissionHistory SubmissionHistory, err error) {
-	// Open the submission history JSON file
-	submissionHistoryPath := SubmissionMetadataFile
+func GetSubmissionMetadata() (submissionMetadata SubmissionMetadata, err error) {
+	// Open the submission metadata JSON file
+	submissionMetadataPath := SubmissionMetadataFile
 
-	file, err := os.ReadFile(submissionHistoryPath)
+	file, err := os.ReadFile(submissionMetadataPath)
 	if err != nil {
 		return
 	}
 
 	// Parse the JSON into an array of testConfig structs
-	err = json.Unmarshal(file, &submissionHistory)
+	err = json.Unmarshal(file, &submissionMetadata)
 	if err != nil {
 		return
 	}
 	// Convert string scores to float values
-	for i := range submissionHistory.PreviousSubmissions {
-		submissionHistory.PreviousSubmissions[i].Score, _ = strconv.ParseFloat(submissionHistory.PreviousSubmissions[i].ScoreString, 64)
+	for i := range submissionMetadata.PreviousSubmissions {
+		submissionMetadata.PreviousSubmissions[i].Score, _ = strconv.ParseFloat(submissionMetadata.PreviousSubmissions[i].ScoreString, 64)
 	}
 
 	return
 }
 
+type LimitWriter struct {
+	w     io.Writer
+	limit int64
+	n     int64
+}
+
+func (lw *LimitWriter) Write(p []byte) (int, error) {
+	if lw.n >= lw.limit {
+		return len(p), nil
+	}
+	avail := lw.limit - lw.n
+	writeLen := int64(len(p))
+	if writeLen > avail {
+		writeLen = avail
+	}
+	written, err := lw.w.Write(p[:writeLen])
+	lw.n += int64(written)
+	if err != nil {
+		return written, err
+	}
+	return len(p), nil
+}
 
 func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput, err error) {
 	// Run all the tests within the submission folder
@@ -181,11 +207,14 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 
 		// Run go test with the specific test name
 		args := []string{"-u", "student", "--", "go", "test", "-v", "-count=1"}
+		if testConfig.Race {
+			args = append(args, "-race")
+		}
 		if testConfig.Timeout != "" {
 			args = append(args, "-timeout", testConfig.Timeout)
 		}
 		args = append(args, "-run", "^"+testConfig.Name+"$", ".")
-		
+
 		// Initialize test result
 		res := TestResult{
 			Score:      testConfig.Points,
@@ -203,22 +232,31 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 		if testConfig.Folder != "" {
 			res.Name = fmt.Sprintf("%s/%s", testConfig.Folder, testConfig.Name)
 		}
-		
+
 		// Check if we need to run this test multiple times
 		runCount := 1
 		if testConfig.Count > 0 {
 			runCount = testConfig.Count
 		}
-		
+
 		// Run the test the specified number of times
 		for i := 0; i < runCount; i++ {
 			if runCount > 1 {
 				fmt.Printf("[%s] Running %s (iteration %d/%d)\n", time.Now().Format(time.RFC3339), testConfig.Name, i+1, runCount)
 			}
-			
+
 			cmd := exec.Command("runuser", args...)
-			out, err := cmd.CombinedOutput()
-			
+			var outBuf bytes.Buffer
+			limitWriter := &LimitWriter{w: &outBuf, limit: 10 * 1024 * 1024} // 10MB limit
+			cmd.Stdout = limitWriter
+			cmd.Stderr = limitWriter
+
+			err := cmd.Run()
+			out := outBuf.Bytes()
+			if limitWriter.n >= limitWriter.limit {
+				out = append(out, []byte("\n\n[Output truncated due to 10MB limit]")...)
+			}
+
 			// Check if the command failed and extract the exit code
 			exitCode := 0
 			if err != nil {
@@ -228,12 +266,12 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 					exitCode = 1
 				}
 			}
-			
+
 			if runCount > 1 {
 				res.Output += fmt.Sprintf("\n\n--- Iteration %d/%d ---\n", i+1, runCount)
 			}
 			res.Output += string(out)
-			
+
 			// If any iteration fails, the entire test fails
 			if exitCode != 0 {
 				res.Score = 0
@@ -242,7 +280,7 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 				}
 			}
 		}
-		
+
 		// Add summary for multiple iterations
 		if runCount > 1 {
 			if res.Score != 0 {
