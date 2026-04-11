@@ -2,10 +2,8 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -155,29 +153,6 @@ func GetSubmissionMetadata() (submissionMetadata SubmissionMetadata, err error) 
 	return
 }
 
-type LimitWriter struct {
-	w     io.Writer
-	limit int64
-	n     int64
-}
-
-func (lw *LimitWriter) Write(p []byte) (int, error) {
-	if lw.n >= lw.limit {
-		return len(p), nil
-	}
-	avail := lw.limit - lw.n
-	writeLen := int64(len(p))
-	if writeLen > avail {
-		writeLen = avail
-	}
-	written, err := lw.w.Write(p[:writeLen])
-	lw.n += int64(written)
-	if err != nil {
-		return written, err
-	}
-	return len(p), nil
-}
-
 func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput, err error) {
 	// Run all the tests within the submission folder
 
@@ -246,16 +221,7 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 			}
 
 			cmd := exec.Command("runuser", args...)
-			var outBuf bytes.Buffer
-			limitWriter := &LimitWriter{w: &outBuf, limit: 10 * 1024 * 1024} // 10MB limit
-			cmd.Stdout = limitWriter
-			cmd.Stderr = limitWriter
-
-			err := cmd.Run()
-			out := outBuf.Bytes()
-			if limitWriter.n >= limitWriter.limit {
-				out = append(out, []byte("\n\n[Output truncated due to 10MB limit]")...)
-			}
+			out, err := cmd.CombinedOutput()
 
 			// Check if the command failed and extract the exit code
 			exitCode := 0
@@ -294,7 +260,6 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 			}
 		}
 		if res.Score == 0 {
-
 			fmt.Printf("[%s] Test failed: %s\n", time.Now().Format(time.RFC3339), testConfig.Name)
 		} else {
 			fmt.Printf("[%s] Test passed: %s\n", time.Now().Format(time.RFC3339), testConfig.Name)

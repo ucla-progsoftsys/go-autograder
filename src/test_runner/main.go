@@ -98,7 +98,7 @@ func main() {
 			case "bashupload.com":
 				/*
 					bashupload.com is no longer online.
-					
+
 					password, url, err := UploadLog("/autograder/results/results.json")
 					if err == nil {
 						log.Printf("Log uploaded successfully. URL: %s, Password: %s\n", url, password)
