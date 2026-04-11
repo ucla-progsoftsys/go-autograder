@@ -232,6 +232,7 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 			res.Name = fmt.Sprintf("%s/%s", testConfig.Folder, testConfig.Name)
 		}
 
+		// min/max required go 1.21 or later, so doing this manually to remain backward compatible
 		runCount := 1
 		if testConfig.Count > 0 {
 			runCount = testConfig.Count
@@ -239,12 +240,13 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 		parallelCount := 1
 		if testConfig.ParallelCount > 1 {
 			parallelCount = testConfig.ParallelCount
-			res.Output += fmt.Sprintf("Running tests in parallel with %d workers.\n", parallelCount);
 		}
 		if parallelCount > runCount {
 			parallelCount = runCount
 		}
-
+		if parallelCount > 1 {
+			res.Output += fmt.Sprintf("Running tests in parallel with %d workers.\n", parallelCount);
+		}
 		runResults := make([]testRunResult, runCount)
 		failureCount := 0
 

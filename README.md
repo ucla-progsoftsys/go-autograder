@@ -71,7 +71,7 @@ This JSON file is where you will configure your autograder for your particular a
 This folder's contents will be overlayed on top of students' submissions before running tests. For example, if students should have a `main/test_test.go` file, make the file `replacement_files/main/test_test.go`, which will replace (or add) that file in the student's code but keep any other files inside of the `main` folder submitted.
 
 ### custom_setup.sh
-This shell script is run (using `source custom_setup.sh`) during autograder build time. Set the `GO_VERSION` variable here (e.g., `GO_VERSION=1.21.0`) to specify which Go version to install. You can also add any additional setup commands here.
+This shell script is run (using `source custom_setup.sh`) during autograder build time. Set the `GO_VERSION` variable here (e.g., `GO_VERSION=1.24.2`) to specify which Go version to install. You can also add any additional setup commands here.
 
 ### custom_run_autograder.sh
 This shell script is run after the student's submission is copied into `/autograder/source/submission` and had their files overlayed, but before running the test cases. This can be used to, for example, check integrity of parts of files in the submission, verify file structure, check for extraneous/missing files, or search for known suspicious strings.

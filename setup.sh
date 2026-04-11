@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-GO_VERSION="1.22.12"
+GO_VERSION="1.24.2"
 
 # Check if custom_setup.sh exists and source it
 if [ -f /autograder/source/custom_setup.sh ]; then
