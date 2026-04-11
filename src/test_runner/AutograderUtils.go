@@ -238,10 +238,10 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 		var failureMu sync.Mutex
 		sem := make(chan struct{}, parallelCount)
 		for i := 0; i < runCount; i++ {
+			sem <- struct{}{}
 			if runCount > 1 {
 				fmt.Printf("[%s] Running %s (iteration %d/%d)\n", time.Now().Format(time.RFC3339), testConfig.Name, i+1, runCount)
 			}
-			sem <- struct{}{}
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
