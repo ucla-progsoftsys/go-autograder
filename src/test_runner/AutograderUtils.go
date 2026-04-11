@@ -100,15 +100,19 @@ type testRunResult struct {
 }
 
 func truncateMiddleBytesIfTooLong(output []byte) string {
-	const maxBytes = 100000
-	const keepBytes = 50000
+	const maxBytes = 200000 // Should be long enough that this truncation message is never seen in gradescope
+	const keepBytes = 100000
 
 	if len(output) <= maxBytes {
 		return string(output)
 	}
 
-	truncated := make([]byte, 0, maxBytes)
+	removedBytes := len(output) - maxBytes
+	marker := []byte(fmt.Sprintf("\n<truncated %d bytes>\n", removedBytes))
+
+	truncated := make([]byte, 0, maxBytes+len(marker))
 	truncated = append(truncated, output[:keepBytes]...)
+	truncated = append(truncated, marker...)
 	truncated = append(truncated, output[len(output)-keepBytes:]...)
 	return string(truncated)
 }
@@ -213,6 +217,15 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 		if testConfig.Folder != "" {
 			testDir = filepath.Join(SubmissionDir, testConfig.Folder)
 		}
+		dirInfo, statErr := os.Stat(testDir)
+		if statErr != nil {
+			err = fmt.Errorf("invalid test folder for test %q: %s: %w", testConfig.Name, testDir, statErr)
+			return
+		}
+		if !dirInfo.IsDir() {
+			err = fmt.Errorf("invalid test folder for test %q: %s is not a directory", testConfig.Name, testDir)
+			return
+		}
 
 		// Initialize test result
 		res := TestResult{
@@ -245,7 +258,7 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 			parallelCount = runCount
 		}
 		if parallelCount > 1 {
-			res.Output += fmt.Sprintf("Running tests in parallel with %d workers.\n", parallelCount);
+			res.Output += fmt.Sprintf("Running tests in parallel with %d workers.\n", parallelCount)
 		}
 		runResults := make([]testRunResult, runCount)
 		failureCount := 0
