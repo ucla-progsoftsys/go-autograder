@@ -29,6 +29,7 @@ This JSON file is where you will configure your autograder for your particular a
 {
     "visibility": "visible", // Optional: visibility setting for autograder results: visible, hidden, after_due_date, after_published
     "uploader": "bashupload.com", // Deprecated and disabled. Do not use.
+    "score_message": "Please note: the automatically generated autograder score when you submit is not your final score. We will rerun the autograder once after submission closes on your active submission to determine your actual project score.", // Optional: A message to be appended to the final autograder output. This is displayed at the top of the student's screen when viewing the Autograder output.
     "ratelimit": { // Optional: Defines ratelimit of log uploading. 
         "count": 2, // Max number of submissions allowed within the time window
         "minutes": 20 // Time window in minutes

@@ -26,10 +26,11 @@ type TestConfig struct {
 
 // AutograderConfig is a struct that represents the parsed contents of autograder.config.json
 type AutograderConfig struct {
-	Visibility string       `json:"visibility"`
-	Tests      []TestConfig `json:"tests"`
-	Uploader   string       `json:"uploader,omitempty"`
-	Ratelimit  struct {
+	Visibility   string       `json:"visibility"`
+	Tests        []TestConfig `json:"tests"`
+	Uploader     string       `json:"uploader,omitempty"`
+	ScoreMessage string       `json:"score_message,omitempty"`
+	Ratelimit    struct {
 		Count   int `json:"count"`
 		Minutes int `json:"minutes"`
 	} `json:"ratelimit,omitempty"`
