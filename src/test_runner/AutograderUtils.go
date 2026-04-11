@@ -278,6 +278,8 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 				if runCount > 1 {
 					fmt.Printf("[%s] Test %s failed on iteration %d/%d\n", time.Now().Format(time.RFC3339), testConfig.Name, i+1, runCount)
 				}
+			} else if runCount > 1 {
+				fmt.Printf("[%s] Test %s passed iteration %d/%d\n", time.Now().Format(time.RFC3339), testConfig.Name, i+1, runCount)
 			}
 		}
 
