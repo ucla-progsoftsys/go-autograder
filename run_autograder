@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+echo "Start time: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+echo "Running autograder..."
+
 # Set up autograder files
 
 export GOPATH=/autograder/source
@@ -48,3 +51,5 @@ EOF
     exit 1
 fi
 /autograder/test_runner
+echo "End time: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+echo "Autograder finished running."
