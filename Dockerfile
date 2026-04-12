@@ -18,7 +18,7 @@ COPY ./custom_run_autograder.sh /autograder/source/custom_run_autograder.sh
 RUN cp /autograder/source/run_autograder /autograder/run_autograder
 
 # Convert Windows line endings to Unix format to prevent execution errors
-RUN dos2unix /autograder/run_autograder /autograder/source/setup.sh
+RUN dos2unix /autograder/run_autograder /autograder/source/setup.sh /autograder/source/custom_setup.sh /autograder/source/custom_run_autograder.sh
 
 # Make the run_autograder script executable
 RUN chmod +x /autograder/run_autograder

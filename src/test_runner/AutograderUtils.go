@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -105,7 +106,7 @@ func truncateMiddleBytesIfTooLong(output []byte) string {
 	const keepBytes = 100000
 
 	if len(output) <= maxBytes {
-		return string(output)
+		return flattenToASCII(output)
 	}
 
 	removedBytes := len(output) - maxBytes
@@ -115,7 +116,18 @@ func truncateMiddleBytesIfTooLong(output []byte) string {
 	truncated = append(truncated, output[:keepBytes]...)
 	truncated = append(truncated, marker...)
 	truncated = append(truncated, output[len(output)-keepBytes:]...)
-	return string(truncated)
+	return flattenToASCII(truncated)
+}
+
+// flattenToASCII strips all non-ASCII bytes and returns the result as a string.
+func flattenToASCII(b []byte) string {
+	out := make([]byte, 0, len(b))
+	for _, c := range b {
+		if c <= 127 {
+			out = append(out, c)
+		}
+	}
+	return string(out)
 }
 
 func FileChecker() (missingFiles []string) {
@@ -132,9 +144,13 @@ func FileChecker() (missingFiles []string) {
 	missingFiles = make([]string, 0)
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
 		// Check if the file exists
-		if _, err := os.Stat(filepath.Join(SubmissionDir, scanner.Text())); os.IsNotExist(err) {
-			missingFiles = append(missingFiles, scanner.Text())
+		if _, err := os.Stat(filepath.Join(SubmissionDir, line)); os.IsNotExist(err) {
+			missingFiles = append(missingFiles, line)
 		}
 	}
 
@@ -168,7 +184,7 @@ func GetSubmissionMetadata() (submissionMetadata SubmissionMetadata, err error) 
 		return
 	}
 
-	// Parse the JSON into an array of testConfig structs
+	// Parse the JSON into a SubmissionMetadata struct
 	err = json.Unmarshal(file, &submissionMetadata)
 	if err != nil {
 		return
@@ -212,7 +228,6 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 
 	// Run each test individually
 	for _, testConfig := range autograderConfig.Tests {
-		testConfig := testConfig
 		fmt.Printf("[%s] Running test: %s\n", time.Now().Format(time.RFC3339), testConfig.Name)
 		testDir := SubmissionDir
 		if testConfig.Folder != "" {

@@ -77,12 +77,20 @@ func getLateDays(metadata SubmissionMetadata) (int, string, error) {
 	}
 
 	details := ""
-	if len(metadata.Users) > 0 && metadata.Users[0].Assignment != nil && metadata.Users[0].Assignment.DueDate != "" {
-		userDueDate, err := parseISODateTime(metadata.Users[0].Assignment.DueDate)
-		if err != nil {
-			return 0, "", fmt.Errorf("invalid user-specific due_date: %w", err)
+	extensionApplied := false
+	for _, user := range metadata.Users {
+		if user.Assignment != nil && user.Assignment.DueDate != "" {
+			userDueDate, err := parseISODateTime(user.Assignment.DueDate)
+			if err != nil {
+				return 0, "", fmt.Errorf("invalid user-specific due_date: %w", err)
+			}
+			if userDueDate.After(dueDate) {
+				dueDate = userDueDate
+				extensionApplied = true
+			}
 		}
-		dueDate = userDueDate
+	}
+	if extensionApplied {
 		details += "Using user-specific due date\n"
 	}
 
