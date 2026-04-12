@@ -29,6 +29,7 @@ This JSON file is where you will configure your autograder for your particular a
 {
     "visibility": "visible", // Optional: visibility setting for autograder results: visible, hidden, after_due_date, after_published
     "uploader": "bashupload.com", // Deprecated and disabled. Do not use.
+    "score_message": "Please note: the automatically generated autograder score when you submit is not your final score. We will rerun the autograder once after submission closes on your active submission to determine your actual project score.", // Optional: A message to be appended to the final autograder output. This is displayed at the top of the student's screen when viewing the Autograder output.
     "ratelimit": { // Optional: Defines ratelimit of log uploading. 
         "count": 2, // Max number of submissions allowed within the time window
         "minutes": 20 // Time window in minutes
@@ -41,7 +42,8 @@ This JSON file is where you will configure your autograder for your particular a
             "visibility": "visible", // Optional: visibility setting for test case: visible, hidden, after_due_date, after_published
             "folder": "main", // Optional: directory to run go test in, relative to root folder of submission files
             "timeout": "600s", // Optional: test timeout for go test command - fails if it goes beyond this time
-            "count": 4, // Optional: specify number of times to run test case - if it fails once, entire test case fails. Note that timeouts (if set) are per run, not across all runs in a single test case
+            "count": 4, // Optional: total number of times to run test case - if it fails once, entire test case fails. Timeouts (if set) are per run, not across all runs in a single test case
+            "parallelCount": 2, // Optional: max number of runs of this test case to execute at once while satisfying count
             "race": true // Optional: specify whether to run test case with -race flag
         },
         {
@@ -70,7 +72,7 @@ This JSON file is where you will configure your autograder for your particular a
 This folder's contents will be overlayed on top of students' submissions before running tests. For example, if students should have a `main/test_test.go` file, make the file `replacement_files/main/test_test.go`, which will replace (or add) that file in the student's code but keep any other files inside of the `main` folder submitted.
 
 ### custom_setup.sh
-This shell script is run (using `source custom_setup.sh`) during autograder build time. Set the `GO_VERSION` variable here (e.g., `GO_VERSION=1.21.0`) to specify which Go version to install. You can also add any additional setup commands here.
+This shell script is run (using `source custom_setup.sh`) during autograder build time. Set the `GO_VERSION` variable here (e.g., `GO_VERSION=1.24.13`) to specify which Go version to install. You can also add any additional setup commands here.
 
 ### custom_run_autograder.sh
 This shell script is run after the student's submission is copied into `/autograder/source/submission` and had their files overlayed, but before running the test cases. This can be used to, for example, check integrity of parts of files in the submission, verify file structure, check for extraneous/missing files, or search for known suspicious strings.

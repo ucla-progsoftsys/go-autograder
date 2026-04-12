@@ -7,27 +7,25 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"time"
 )
 
 func main() {
 	// Write output if the autograder crashes (probably due to OOM)
 	var tempRes AutograderOutput
-	tempRes.Tests = []TestResult{TestResult{Score: 0, MaxScore: 0, Name: "Autograder Crash", Number: "0", Output: "The autograder has crashed while running, likely due to running out of memory. Note that printed output is stored in-memory, so avoid printing large amounts of data such as values in the key-value database.", Visibility: "visible"}}
+	tempRes.Tests = []TestResult{TestResult{Score: 0, MaxScore: 1, Name: "Autograder Crash", Number: "0", Output: "The autograder has crashed while running, likely due to running out of memory. Note that printed output is stored in-memory, so avoid printing large amounts of data such as values in the key-value database.", Visibility: "visible"}}
 	file2, _ := json.MarshalIndent(tempRes, "", " ")
 	_ = os.WriteFile(ResultsFile, file2, 0644)
-	StartRamChecker()
+	StartResourceMonitor()
 
 	jsonConfig, err := GetJsonConfig()
 	if err != nil {
 		log.Fatalf("Error loading config: %v\n", err)
-		os.Exit(1)
 	}
 
 	missingFiles := FileChecker()
 	submissionMetadata, submissionMetadataErr := GetSubmissionMetadata()
 	if submissionMetadataErr != nil {
-		log.Printf("Error getting submission history: %v\n", submissionMetadataErr)
+		log.Printf("Error getting submission metadata: %v\n", submissionMetadataErr)
 	}
 
 	var res AutograderOutput
@@ -48,22 +46,22 @@ func main() {
 			log.Fatalf("Error: %v\n", err)
 		}
 		ApplyLatePenalty(&res, submissionMetadata)
-		res.Output += "Please note: the automatically generated autograder score when you submit is not your final score. We will rerun the autograder once after submission closes on your active submission to determine your actual project score."
+		if jsonConfig.ScoreMessage != "" {
+			res.Output += jsonConfig.ScoreMessage + "\n"
+		}
 	}
 	file, _ := json.MarshalIndent(res, "", " ")
 	_ = os.WriteFile(ResultsFile, file, 0644)
 	// Set file to nil and run GC to free up memory
 	file = nil
-	_ = ""
 	runtime.GC()
 
-	outputChanged := false
 	ratelimitExceeded := false
 
 	// Count number of submissions within last X hours as defined in the config
 	if (submissionMetadataErr == nil && jsonConfig.Ratelimit.Count > 0) && (jsonConfig.Ratelimit.Minutes > 0) {
 		count := 1
-		thisSubmissionTime, err := time.Parse(time.RFC3339Nano, submissionMetadata.CreatedAt)
+		thisSubmissionTime, err := parseISODateTime(submissionMetadata.CreatedAt)
 		if err != nil {
 			log.Printf("Error parsing submission time: %v\n", err)
 			return
@@ -71,7 +69,7 @@ func main() {
 		for _, submission := range submissionMetadata.PreviousSubmissions {
 
 			// Parse the submission time
-			submissionTime, err := time.Parse(time.RFC3339Nano, submission.SubmissionTime)
+			submissionTime, err := parseISODateTime(submission.SubmissionTime)
 			if err != nil {
 				log.Printf("Error parsing submission time: %v\n", err)
 				continue
@@ -82,7 +80,6 @@ func main() {
 				count++
 			}
 		}
-		outputChanged = true
 		if count > jsonConfig.Ratelimit.Count {
 			ratelimitExceeded = true
 			res.Output += fmt.Sprintf("Rate limit exceeded. You have submitted %d time(s) in the last %d minutes; not uploading log\n", count, jsonConfig.Ratelimit.Minutes)
@@ -114,13 +111,12 @@ func main() {
 				log.Printf("Unknown uploader: %s\n", jsonConfig.Uploader)
 			}
 		} else {
-			log.Printf("No uploader specified or error getting config: %v\n", err)
+			log.Printf("No uploader specified, skipping log upload\n")
 		}
 	}
 
-	if outputChanged {
-		file, _ = json.MarshalIndent(res, "", " ")
-		_ = os.WriteFile(ResultsFile, file, 0644)
-	}
+	// Write final results
+	file, _ = json.MarshalIndent(res, "", " ")
+	_ = os.WriteFile(ResultsFile, file, 0644)
 
 }

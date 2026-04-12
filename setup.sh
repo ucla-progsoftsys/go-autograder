@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
+set -e
 
-GO_VERSION="1.22.12"
+GO_VERSION="1.24.13"
 
 # Check if custom_setup.sh exists and source it
 if [ -f /autograder/source/custom_setup.sh ]; then
@@ -27,6 +28,5 @@ mkdir -p /autograder/source
 chmod -R 755 /autograder/source
 
 # Build the test_runner program
-cd /autograder/source/src/test_runner
-go build -o /autograder/test_runner .
+(cd /autograder/source/src/test_runner && go build -o /autograder/test_runner .)
 chmod +x /autograder/test_runner

@@ -1,3 +1,3 @@
 module test_runner
 
-go 1.18
+go 1.24.13

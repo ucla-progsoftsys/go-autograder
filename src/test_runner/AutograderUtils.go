@@ -8,24 +8,30 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 )
 
+type TestConfig struct {
+	Name          string  `json:"name"`
+	Number        string  `json:"number"`
+	Points        float64 `json:"points"`
+	Visibility    string  `json:"visibility,omitempty"`
+	Folder        string  `json:"folder,omitempty"`
+	Timeout       string  `json:"timeout,omitempty"`
+	Count         int     `json:"count,omitempty"`
+	ParallelCount int     `json:"parallelCount,omitempty"`
+	Race          bool    `json:"race,omitempty"`
+}
+
 // AutograderConfig is a struct that represents the parsed contents of autograder.config.json
 type AutograderConfig struct {
-	Visibility string `json:"visibility"`
-	Tests      []struct {
-		Name       string  `json:"name"`
-		Number     string  `json:"number"`
-		Points     float64 `json:"points"`
-		Visibility string  `json:"visibility,omitempty"`
-		Folder     string  `json:"folder,omitempty"`
-		Timeout    string  `json:"timeout,omitempty"`
-		Count      int     `json:"count,omitempty"`
-		Race       bool    `json:"race,omitempty"`
-	} `json:"tests"`
-	Uploader  string `json:"uploader,omitempty"`
-	Ratelimit struct {
+	Visibility   string       `json:"visibility"`
+	Tests        []TestConfig `json:"tests"`
+	Uploader     string       `json:"uploader,omitempty"`
+	ScoreMessage string       `json:"score_message,omitempty"`
+	Ratelimit    struct {
 		Count   int `json:"count"`
 		Minutes int `json:"minutes"`
 	} `json:"ratelimit,omitempty"`
@@ -60,7 +66,7 @@ type SubmissionMetadata struct {
 	PreviousSubmissions []PreviousSubmission `json:"previous_submissions"`
 }
 
-// Assignment represents the assignment details in submission_history.json
+// Assignment represents the assignment details in submission_metadata.json
 type Assignment struct {
 	DueDate         string  `json:"due_date"`
 	GroupSize       *int    `json:"group_size"` // Using pointer to handle null
@@ -73,7 +79,7 @@ type Assignment struct {
 	TotalPoints     string  `json:"total_points"`
 }
 
-// User represents a user in the submission_history.json
+// User represents a user in submission_metadata.json
 type User struct {
 	Email      string      `json:"email"`
 	ID         int         `json:"id"`
@@ -81,13 +87,47 @@ type User struct {
 	Assignment *Assignment `json:"assignment,omitempty"`
 }
 
-// PreviousSubmission represents a previous submission in submission_history.json
+// PreviousSubmission represents a previous submission in submission_metadata.json
 type PreviousSubmission struct {
 	SubmissionTime  string          `json:"submission_time"`
 	ScoreString     string          `json:"score"` // For some reason, score is a string
 	Score           float64         `json:"score_as_integer,omitempty"`
 	AutograderError bool            `json:"autograder_error"`
 	Results         json.RawMessage `json:"results"` // Using RawMessage for the nested results object
+}
+
+type testRunResult struct {
+	output   string
+	exitCode int
+}
+
+func truncateMiddleBytesIfTooLong(output []byte) string {
+	const maxBytes = 200000 // Should be long enough that this truncation message is never seen in gradescope
+	const keepBytes = 100000
+
+	if len(output) <= maxBytes {
+		return flattenToASCII(output)
+	}
+
+	removedBytes := len(output) - maxBytes
+	marker := []byte(fmt.Sprintf("\n<truncated %d bytes>\n", removedBytes))
+
+	truncated := make([]byte, 0, maxBytes+len(marker))
+	truncated = append(truncated, output[:keepBytes]...)
+	truncated = append(truncated, marker...)
+	truncated = append(truncated, output[len(output)-keepBytes:]...)
+	return flattenToASCII(truncated)
+}
+
+// flattenToASCII strips all non-ASCII bytes and returns the result as a string.
+func flattenToASCII(b []byte) string {
+	out := make([]byte, 0, len(b))
+	for _, c := range b {
+		if c <= 127 {
+			out = append(out, c)
+		}
+	}
+	return string(out)
 }
 
 func FileChecker() (missingFiles []string) {
@@ -104,9 +144,13 @@ func FileChecker() (missingFiles []string) {
 	missingFiles = make([]string, 0)
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
 		// Check if the file exists
-		if _, err := os.Stat(filepath.Join(SubmissionDir, scanner.Text())); os.IsNotExist(err) {
-			missingFiles = append(missingFiles, scanner.Text())
+		if _, err := os.Stat(filepath.Join(SubmissionDir, line)); os.IsNotExist(err) {
+			missingFiles = append(missingFiles, line)
 		}
 	}
 
@@ -140,7 +184,7 @@ func GetSubmissionMetadata() (submissionMetadata SubmissionMetadata, err error) 
 		return
 	}
 
-	// Parse the JSON into an array of testConfig structs
+	// Parse the JSON into a SubmissionMetadata struct
 	err = json.Unmarshal(file, &submissionMetadata)
 	if err != nil {
 		return
@@ -153,42 +197,51 @@ func GetSubmissionMetadata() (submissionMetadata SubmissionMetadata, err error) 
 	return
 }
 
+func buildGoTestArgs(testConfig TestConfig) []string {
+	args := []string{"-u", "student", "--", "go", "test", "-v", "-count=1"}
+	if testConfig.Race {
+		args = append(args, "-race")
+	}
+	if testConfig.Timeout != "" {
+		args = append(args, "-timeout", testConfig.Timeout)
+	}
+	return append(args, "-run", "^"+testConfig.Name+"$", ".")
+}
+
+func runGoTest(testDir string, testConfig TestConfig) testRunResult {
+	cmd := exec.Command("runuser", buildGoTestArgs(testConfig)...)
+	cmd.Dir = testDir
+	out, err := cmd.CombinedOutput()
+	result := testRunResult{output: truncateMiddleBytesIfTooLong(out)}
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			result.exitCode = exitErr.ExitCode()
+		} else {
+			result.exitCode = 1
+		}
+	}
+	return result
+}
+
 func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput, err error) {
 	// Run all the tests within the submission folder
-
-	// Change working directory to the student submission
-	err = os.Chdir(SubmissionDir)
-	if err != nil {
-		return
-	}
 
 	// Run each test individually
 	for _, testConfig := range autograderConfig.Tests {
 		fmt.Printf("[%s] Running test: %s\n", time.Now().Format(time.RFC3339), testConfig.Name)
-		// Change working directory to the test folder if specified
+		testDir := SubmissionDir
 		if testConfig.Folder != "" {
-			err = os.Chdir(filepath.Join(SubmissionDir, testConfig.Folder))
-			if err != nil {
-				fmt.Printf("Error changing directory to %s: %v\n", testConfig.Folder, err)
-				return
-			}
-		} else {
-			err = os.Chdir(SubmissionDir)
-			if err != nil {
-				fmt.Printf("Error changing directory to submission: %v\n", err)
-				return
-			}
+			testDir = filepath.Join(SubmissionDir, testConfig.Folder)
 		}
-
-		// Run go test with the specific test name
-		args := []string{"-u", "student", "--", "go", "test", "-v", "-count=1"}
-		if testConfig.Race {
-			args = append(args, "-race")
+		dirInfo, statErr := os.Stat(testDir)
+		if statErr != nil {
+			err = fmt.Errorf("invalid test folder for test %q: %s: %w", testConfig.Name, testDir, statErr)
+			return
 		}
-		if testConfig.Timeout != "" {
-			args = append(args, "-timeout", testConfig.Timeout)
+		if !dirInfo.IsDir() {
+			err = fmt.Errorf("invalid test folder for test %q: %s is not a directory", testConfig.Name, testDir)
+			return
 		}
-		args = append(args, "-run", "^"+testConfig.Name+"$", ".")
 
 		// Initialize test result
 		res := TestResult{
@@ -208,55 +261,69 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 			res.Name = fmt.Sprintf("%s/%s", testConfig.Folder, testConfig.Name)
 		}
 
-		// Check if we need to run this test multiple times
+		// min/max required go 1.21 or later, so doing this manually to remain backward compatible
 		runCount := 1
 		if testConfig.Count > 0 {
 			runCount = testConfig.Count
 		}
+		parallelCount := 1
+		if testConfig.ParallelCount > 1 {
+			parallelCount = testConfig.ParallelCount
+		}
+		if parallelCount > runCount {
+			parallelCount = runCount
+		}
+		if parallelCount > 1 {
+			res.Output += fmt.Sprintf("Running tests in parallel with %d workers.\n", parallelCount)
+		}
+		runResults := make([]testRunResult, runCount)
+		failureCount := 0
 
-		// Run the test the specified number of times
+		var wg sync.WaitGroup
+		var failureMu sync.Mutex
+		sem := make(chan struct{}, parallelCount)
 		for i := 0; i < runCount; i++ {
+			sem <- struct{}{}
 			if runCount > 1 {
 				fmt.Printf("[%s] Running %s (iteration %d/%d)\n", time.Now().Format(time.RFC3339), testConfig.Name, i+1, runCount)
 			}
-
-			cmd := exec.Command("runuser", args...)
-			out, err := cmd.CombinedOutput()
-
-			// Check if the command failed and extract the exit code
-			exitCode := 0
-			if err != nil {
-				if exitErr, ok := err.(*exec.ExitError); ok {
-					exitCode = exitErr.ExitCode()
-				} else {
-					exitCode = 1
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				runResults[i] = runGoTest(testDir, testConfig)
+				if runResults[i].exitCode != 0 {
+					failureMu.Lock()
+					failureCount++
+					failureMu.Unlock()
+					if runCount > 1 {
+						fmt.Printf("[%s] Test %s failed on iteration %d/%d\n", time.Now().Format(time.RFC3339), testConfig.Name, i+1, runCount)
+					}
+				} else if runCount > 1 {
+					fmt.Printf("[%s] Test %s passed iteration %d/%d\n", time.Now().Format(time.RFC3339), testConfig.Name, i+1, runCount)
 				}
-			}
+			}(i)
+		}
+		wg.Wait()
 
+		for i, runResult := range runResults {
 			if runCount > 1 {
 				res.Output += fmt.Sprintf("\n\n--- Iteration %d/%d ---\n", i+1, runCount)
 			}
-			res.Output += string(out)
-
-			// If any iteration fails, the entire test fails
-			if exitCode != 0 {
-				res.Score = 0
-				if runCount > 1 {
-					fmt.Printf("[%s] Test %s failed on iteration %d/%d\n", time.Now().Format(time.RFC3339), testConfig.Name, i+1, runCount)
-				}
-			} else if runCount > 1 {
-				fmt.Printf("[%s] Test %s passed iteration %d/%d\n", time.Now().Format(time.RFC3339), testConfig.Name, i+1, runCount)
-			}
+			res.Output += runResult.output
 		}
 
-		// Add summary for multiple iterations
+		if failureCount > 0 {
+			res.Score = 0
+		}
+
 		if runCount > 1 {
-			if res.Score != 0 {
+			if failureCount == 0 {
 				fmt.Printf("[%s] All %d iterations of test %s passed\n", time.Now().Format(time.RFC3339), runCount, testConfig.Name)
 				res.Output += fmt.Sprintf("\n\n--- Summary ---\nAll %d iterations passed.\n", runCount)
 			} else {
-				fmt.Printf("[%s] Test %s failed (at least one of %d iterations failed)\n", time.Now().Format(time.RFC3339), testConfig.Name, runCount)
-				res.Output += fmt.Sprintf("\n\n--- Summary ---\nAt least one of the %d iterations failed.\n", runCount)
+				fmt.Printf("[%s] Test %s failed (%d/%d iterations failed)\n", time.Now().Format(time.RFC3339), testConfig.Name, failureCount, runCount)
+				res.Output += fmt.Sprintf("\n\n--- Summary ---\n%d/%d iterations failed.\n", failureCount, runCount)
 			}
 		}
 		if res.Score == 0 {
