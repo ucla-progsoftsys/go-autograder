@@ -13,7 +13,7 @@ import (
 func main() {
 	// Write output if the autograder crashes (probably due to OOM)
 	var tempRes AutograderOutput
-	tempRes.Tests = []TestResult{TestResult{Score: 0, MaxScore: 0, Name: "Autograder Crash", Number: "0", Output: "The autograder has crashed while running, likely due to running out of memory. Note that printed output is stored in-memory, so avoid printing large amounts of data such as values in the key-value database.", Visibility: "visible"}}
+	tempRes.Tests = []TestResult{TestResult{Score: 0, MaxScore: 1, Name: "Autograder Crash", Number: "0", Output: "The autograder has crashed while running, likely due to running out of memory. Note that printed output is stored in-memory, so avoid printing large amounts of data such as values in the key-value database.", Visibility: "visible"}}
 	file2, _ := json.MarshalIndent(tempRes, "", " ")
 	_ = os.WriteFile(ResultsFile, file2, 0644)
 	StartRamChecker()
@@ -21,13 +21,12 @@ func main() {
 	jsonConfig, err := GetJsonConfig()
 	if err != nil {
 		log.Fatalf("Error loading config: %v\n", err)
-		os.Exit(1)
 	}
 
 	missingFiles := FileChecker()
 	submissionMetadata, submissionMetadataErr := GetSubmissionMetadata()
 	if submissionMetadataErr != nil {
-		log.Printf("Error getting submission history: %v\n", submissionMetadataErr)
+		log.Printf("Error getting submission metadata: %v\n", submissionMetadataErr)
 	}
 
 	var res AutograderOutput

@@ -65,7 +65,7 @@ type SubmissionMetadata struct {
 	PreviousSubmissions []PreviousSubmission `json:"previous_submissions"`
 }
 
-// Assignment represents the assignment details in submission_history.json
+// Assignment represents the assignment details in submission_metadata.json
 type Assignment struct {
 	DueDate         string  `json:"due_date"`
 	GroupSize       *int    `json:"group_size"` // Using pointer to handle null
@@ -78,7 +78,7 @@ type Assignment struct {
 	TotalPoints     string  `json:"total_points"`
 }
 
-// User represents a user in the submission_history.json
+// User represents a user in submission_metadata.json
 type User struct {
 	Email      string      `json:"email"`
 	ID         int         `json:"id"`
@@ -86,7 +86,7 @@ type User struct {
 	Assignment *Assignment `json:"assignment,omitempty"`
 }
 
-// PreviousSubmission represents a previous submission in submission_history.json
+// PreviousSubmission represents a previous submission in submission_metadata.json
 type PreviousSubmission struct {
 	SubmissionTime  string          `json:"submission_time"`
 	ScoreString     string          `json:"score"` // For some reason, score is a string

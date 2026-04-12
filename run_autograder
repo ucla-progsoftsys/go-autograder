@@ -37,4 +37,16 @@ chown root:root /autograder/results/results.json
 chmod 600 /autograder/results/results.json
 
 # Run the pre-built test_runner program
+if [ ! -x /autograder/test_runner ]; then
+    echo "ERROR: /autograder/test_runner is missing or not executable. Check the setup/build step." >&2
+    cat > /autograder/results/results.json <<'EOF'
+{
+  "output": "ERROR: /autograder/test_runner is missing or not executable. Check the setup/build step and binary path.",
+  "tests": []
+}
+EOF
+    chown root:root /autograder/results/results.json
+    chmod 600 /autograder/results/results.json
+    exit 1
+fi
 /autograder/test_runner
