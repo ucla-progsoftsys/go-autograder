@@ -15,7 +15,7 @@ func main() {
 	tempRes.Tests = []TestResult{TestResult{Score: 0, MaxScore: 1, Name: "Autograder Crash", Number: "0", Output: "The autograder has crashed while running, likely due to running out of memory. Note that printed output is stored in-memory, so avoid printing large amounts of data such as values in the key-value database.", Visibility: "visible"}}
 	file2, _ := json.MarshalIndent(tempRes, "", " ")
 	_ = os.WriteFile(ResultsFile, file2, 0644)
-	StartRamChecker()
+	StartResourceMonitor()
 
 	jsonConfig, err := GetJsonConfig()
 	if err != nil {
