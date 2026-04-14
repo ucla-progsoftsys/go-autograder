@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,6 +24,7 @@ type TestConfig struct {
 	Count         int     `json:"count,omitempty"`
 	ParallelCount int     `json:"parallelCount,omitempty"`
 	Race          bool    `json:"race,omitempty"`
+	AllOrNothing  bool    `json:"allOrNothing,omitempty"`
 }
 
 // AutograderConfig is a struct that represents the parsed contents of autograder.config.json
@@ -128,6 +130,25 @@ func flattenToASCII(b []byte) string {
 		}
 	}
 	return string(out)
+}
+
+// calculateExponentialScore computes partial credit using smooth exponential decay.
+// The formula is: points × 0.5^((1 - passRate) / 0.1)
+// Anchor points: 100% passed = 100%, 90% = 50%, 80% = 25%, 70% = 12.5%, <70% = 0%.
+// Values between anchor points are smoothly interpolated (e.g. 95% ≈ 70.7%).
+func calculateExponentialScore(maxPoints float64, passCount, totalCount int) float64 {
+	if totalCount <= 0 {
+		return 0
+	}
+	passRate := float64(passCount) / float64(totalCount)
+	if passRate < 0.6999 { // Limit floating point math errors to allow 70% exactly to still get points
+		return 0
+	}
+	if passRate >= 1.0 {
+		return maxPoints
+	}
+	// Smooth exponential: halves for every 10% drop from 100%
+	return maxPoints * math.Pow(0.5, (1.0-passRate)/0.1)
 }
 
 func FileChecker() (missingFiles []string) {
@@ -313,21 +334,36 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 			res.Output += runResult.output
 		}
 
+		passCount := runCount - failureCount
+
+		// Scoring: exponential decay by default when count > 1, unless allOrNothing is set
 		if failureCount > 0 {
-			res.Score = 0
+			if runCount > 1 && !testConfig.AllOrNothing {
+				res.Score = calculateExponentialScore(testConfig.Points, passCount, runCount)
+			} else {
+				res.Score = 0
+			}
 		}
 
 		if runCount > 1 {
+			passRate := float64(passCount) / float64(runCount) * 100
 			if failureCount == 0 {
 				fmt.Printf("[%s] All %d iterations of test %s passed\n", time.Now().Format(time.RFC3339), runCount, testConfig.Name)
 				res.Output += fmt.Sprintf("\n\n--- Summary ---\nAll %d iterations passed.\n", runCount)
 			} else {
 				fmt.Printf("[%s] Test %s failed (%d/%d iterations failed)\n", time.Now().Format(time.RFC3339), testConfig.Name, failureCount, runCount)
-				res.Output += fmt.Sprintf("\n\n--- Summary ---\n%d/%d iterations failed.\n", failureCount, runCount)
+				res.Output += fmt.Sprintf("\n\n--- Summary ---\n%d/%d iterations passed (%.0f%% pass rate).\n", passCount, runCount, passRate)
+				if !testConfig.AllOrNothing {
+					res.Output += fmt.Sprintf("Exponential scoring: %.2f/%.2f points awarded.\n", res.Score, testConfig.Points)
+				} else {
+					res.Output += "All-or-nothing scoring: 0 points awarded due to failure(s).\n"
+				}
 			}
 		}
 		if res.Score == 0 {
 			fmt.Printf("[%s] Test failed: %s\n", time.Now().Format(time.RFC3339), testConfig.Name)
+		} else if res.Score < testConfig.Points {
+			fmt.Printf("[%s] Test partial: %s (%.2f/%.2f)\n", time.Now().Format(time.RFC3339), testConfig.Name, res.Score, testConfig.Points)
 		} else {
 			fmt.Printf("[%s] Test passed: %s\n", time.Now().Format(time.RFC3339), testConfig.Name)
 		}

@@ -12,6 +12,21 @@ This autograder works by running each test by name and folder specified in `auto
 
 The autograder also applies a built-in exponential late penalty: $2^{n-1}\%$ deduction for $n$ days late (rounded up), capped at 100%.
 
+### Multi-run exponential scoring
+
+When a test is configured with `count > 1`, the autograder runs it multiple times and awards partial credit using a **smooth exponential decay formula**: `points × 0.5^((1 - passRate) / 0.1)`, where pass rates below 70% receive 0 points.
+
+| Pass Rate | Points Awarded |
+|-----------|---------------|
+| 100%      | 100%          |
+| 95%       | ≈ 70.7%       |
+| 90%       | 50%           |
+| 80%       | 25%           |
+| 70%       | 12.5%         |
+| < 70%     | 0%            |
+
+Values between anchor points are smoothly interpolated. This is the default behavior. To revert to the previous all-or-nothing scoring (any failure = 0 points), set `"allOrNothing": true` on the test case.
+
 When the autograder runs, the student's submission will be copied into `/autograder/source/submission`, all existing `_test.go` files will be deleted (to prevent students from providing their own test cases), and then files inside of `replacement_files` will be overlayed over the student's submission, such as your own `test_test.go` files. You can make any necessary changes to a student's submission not possible with this folder -- such as ensuring parts of a file are unchanged -- before the autograder runs by adding shell commands to `custom_run_autograder.sh`.
 
 ## File hierarchy
@@ -42,9 +57,10 @@ This JSON file is where you will configure your autograder for your particular a
             "visibility": "visible", // Optional: visibility setting for test case: visible, hidden, after_due_date, after_published
             "folder": "main", // Optional: directory to run go test in, relative to root folder of submission files
             "timeout": "600s", // Optional: test timeout for go test command - fails if it goes beyond this time
-            "count": 4, // Optional: total number of times to run test case - if it fails once, entire test case fails. Timeouts (if set) are per run, not across all runs in a single test case
+            "count": 10, // Optional: total number of times to run test case. When count > 1, exponential decay scoring is used by default (see above)
             "parallelCount": 2, // Optional: max number of runs of this test case to execute at once while satisfying count
-            "race": true // Optional: specify whether to run test case with -race flag
+            "race": true, // Optional: specify whether to run test case with -race flag
+            "allOrNothing": false // Optional: set to true to disable exponential scoring and use all-or-nothing (any failure = 0 points) when count > 1
         },
         {
             "name": "TestAddTwoNegativeNumbers",
