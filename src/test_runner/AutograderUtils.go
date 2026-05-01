@@ -283,6 +283,11 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 			res.Name = fmt.Sprintf("%s/%s", testConfig.Folder, testConfig.Name)
 		}
 
+		// If race is enabled, add `-race`
+		if testConfig.Race {
+			res.Name += " -race"
+		}
+
 		// Override display name if specified
 		if testConfig.DisplayName != "" {
 			res.Name = testConfig.DisplayName
