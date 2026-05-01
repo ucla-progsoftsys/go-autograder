@@ -25,6 +25,7 @@ type TestConfig struct {
 	ParallelCount int     `json:"parallelCount,omitempty"`
 	Race          bool    `json:"race,omitempty"`
 	AllOrNothing  bool    `json:"allOrNothing,omitempty"`
+	DisplayName   string  `json:"displayName,omitempty"`
 }
 
 // AutograderConfig is a struct that represents the parsed contents of autograder.config.json
@@ -280,6 +281,11 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 		// Prepend folder name to the test name if specified
 		if testConfig.Folder != "" {
 			res.Name = fmt.Sprintf("%s/%s", testConfig.Folder, testConfig.Name)
+		}
+
+		// Override display name if specified
+		if testConfig.DisplayName != "" {
+			res.Name = testConfig.DisplayName
 		}
 
 		// min/max required go 1.21 or later, so doing this manually to remain backward compatible

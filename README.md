@@ -60,7 +60,8 @@ This JSON file is where you will configure your autograder for your particular a
             "count": 10, // Optional: total number of times to run test case. When count > 1, exponential decay scoring is used by default (see above)
             "parallelCount": 2, // Optional: max number of runs of this test case to execute at once while satisfying count
             "race": true, // Optional: specify whether to run test case with -race flag
-            "allOrNothing": false // Optional: set to true to disable exponential scoring and use all-or-nothing (any failure = 0 points) when count > 1
+            "allOrNothing": false, // Optional: set to true to disable exponential scoring and use all-or-nothing (any failure = 0 points) when count > 1
+            "displayName": "Add Two Numbers" // Optional: overrides the display name (the "name" field in results.json) instead of the default folder/testname format
         },
         {
             "name": "TestAddTwoNegativeNumbers",
