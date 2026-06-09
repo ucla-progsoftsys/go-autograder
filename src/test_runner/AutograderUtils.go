@@ -250,6 +250,7 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 	// Run all the tests within the submission folder
 
 	// Run each test individually
+	var perRunResults []TestResult
 	for _, testConfig := range autograderConfig.Tests {
 		fmt.Printf("[%s] Running test: %s\n", time.Now().Format(time.RFC3339), testConfig.Name)
 		testDir := SubmissionDir
@@ -389,14 +390,14 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 
 		result.Tests = append(result.Tests, res)
 
-		// For multi-run: append separate per-run TestResults with individual outputs
+		// For multi-run: collect separate per-run TestResults to append at the end
 		if runCount > 1 {
 			for i, runResult := range runResults {
 				runStatus := "passed"
 				if runResult.exitCode != 0 {
 					runStatus = "failed"
 				}
-				perRunResult := TestResult{
+				perRunResults = append(perRunResults, TestResult{
 					Score:      0,
 					MaxScore:   0,
 					Name:       fmt.Sprintf("%s (Run %d)", res.Name, i+1),
@@ -404,11 +405,13 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 					Output:     runResult.output,
 					Visibility: res.Visibility,
 					Status:     runStatus,
-				}
-				result.Tests = append(result.Tests, perRunResult)
+				})
 			}
 		}
 	}
+
+	// Append all per-run output results after all scored summary results
+	result.Tests = append(result.Tests, perRunResults...)
 
 	// Generate autograder output from test results
 	result.Visibility = autograderConfig.Visibility
