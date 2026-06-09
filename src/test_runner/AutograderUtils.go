@@ -43,12 +43,13 @@ type AutograderConfig struct {
 // TestResult is a struct that represents the result of a test case in Gradescope's specifications
 // https://gradescope-autograders.readthedocs.io/en/latest/specs/
 type TestResult struct {
-	Score      float64 `json:"score"`
-	MaxScore   float64 `json:"max_score"`
+	Score      float64 `json:"score",omitempty`
+	MaxScore   float64 `json:"max_score",omitempty`
 	Name       string  `json:"name"`
 	Number     string  `json:"number"`
 	Output     string  `json:"output"`
 	Visibility string  `json:"visibility,omitempty"`
+	Status     string  `json:"status,omitempty"`
 }
 
 // AutograderOutput represents the output that conforms to Gradescope's specifications
@@ -338,14 +339,21 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 		}
 		wg.Wait()
 
-		for i, runResult := range runResults {
-			if runCount > 1 {
-				res.Output += fmt.Sprintf("\n\n--- Iteration %d/%d ---\n", i+1, runCount)
-			}
-			res.Output += runResult.output
-		}
-
 		passCount := runCount - failureCount
+
+		if runCount > 1 {
+			// For multi-run: main TestResult output contains only per-run pass/fail lines and summary
+			for i, runResult := range runResults {
+				if runResult.exitCode == 0 {
+					res.Output += fmt.Sprintf("Test run %d passed\n", i+1)
+				} else {
+					res.Output += fmt.Sprintf("Test run %d failed\n", i+1)
+				}
+			}
+		} else {
+			// Single run: include the output directly as before
+			res.Output += runResults[0].output
+		}
 
 		// Scoring: exponential decay by default when count > 1, unless allOrNothing is set
 		if failureCount > 0 {
@@ -360,10 +368,10 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 			passRate := float64(passCount) / float64(runCount) * 100
 			if failureCount == 0 {
 				fmt.Printf("[%s] All %d iterations of test %s passed\n", time.Now().Format(time.RFC3339), runCount, testConfig.Name)
-				res.Output += fmt.Sprintf("\n\n--- Summary ---\nAll %d iterations passed.\n", runCount)
+				res.Output += fmt.Sprintf("\n--- Summary ---\nAll %d iterations passed.\n", runCount)
 			} else {
 				fmt.Printf("[%s] Test %s failed (%d/%d iterations failed)\n", time.Now().Format(time.RFC3339), testConfig.Name, failureCount, runCount)
-				res.Output += fmt.Sprintf("\n\n--- Summary ---\n%d/%d iterations passed (%.0f%% pass rate).\n", passCount, runCount, passRate)
+				res.Output += fmt.Sprintf("\n--- Summary ---\n%d/%d iterations passed (%.0f%% pass rate).\n", passCount, runCount, passRate)
 				if !testConfig.AllOrNothing {
 					res.Output += fmt.Sprintf("Exponential scoring: %.2f/%.2f points awarded.\n", res.Score, testConfig.Points)
 				} else {
@@ -380,6 +388,26 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 		}
 
 		result.Tests = append(result.Tests, res)
+
+		// For multi-run: append separate per-run TestResults with individual outputs
+		if runCount > 1 {
+			for i, runResult := range runResults {
+				runStatus := "passed"
+				if runResult.exitCode != 0 {
+					runStatus = "failed"
+				}
+				perRunResult := TestResult{
+					Score:      0,
+					MaxScore:   0,
+					Name:       fmt.Sprintf("%s (Run %d)", res.Name, i+1),
+					Number:     fmt.Sprintf("%s.%d", testConfig.Number, i+1),
+					Output:     runResult.output,
+					Visibility: res.Visibility,
+					Status:     runStatus,
+				}
+				result.Tests = append(result.Tests, perRunResult)
+			}
+		}
 	}
 
 	// Generate autograder output from test results
