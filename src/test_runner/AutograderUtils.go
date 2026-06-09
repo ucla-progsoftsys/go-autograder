@@ -43,8 +43,8 @@ type AutograderConfig struct {
 // TestResult is a struct that represents the result of a test case in Gradescope's specifications
 // https://gradescope-autograders.readthedocs.io/en/latest/specs/
 type TestResult struct {
-	Score      float64 `json:"score",omitempty`
-	MaxScore   float64 `json:"max_score",omitempty`
+	Score      float64 `json:"score"`
+	MaxScore   float64 `json:"max_score"`
 	Name       string  `json:"name"`
 	Number     string  `json:"number"`
 	Output     string  `json:"output"`
@@ -401,7 +401,7 @@ func JsonTestRunner(autograderConfig AutograderConfig) (result AutograderOutput,
 					Score:      0,
 					MaxScore:   0,
 					Name:       fmt.Sprintf("%s (Run %d)", res.Name, i+1),
-					Number:     fmt.Sprintf("%s.%d", testConfig.Number, i+1),
+					Number:     fmt.Sprintf("%s-Run %d", testConfig.Number, i+1),
 					Output:     runResult.output,
 					Visibility: res.Visibility,
 					Status:     runStatus,
